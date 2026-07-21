@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;600;700&display=swap');
+
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #283127;
+  background: #f7f1e7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at top, #fffdf8 0, #f7f1e7 55%, #eee5d7 100%); }
+button, input { font: inherit; }
+button { cursor: pointer; }
+
+.page-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.hero-card { width: min(720px, 100%); padding: clamp(28px, 6vw, 64px); text-align: center; border: 1px solid rgba(255,255,255,.9); border-radius: 32px; background: rgba(255,255,255,.82); box-shadow: 0 24px 70px rgba(72,82,65,.16); backdrop-filter: blur(16px); }
+.heart-badge { width: 68px; height: 68px; margin: 0 auto 20px; display: grid; place-items: center; border-radius: 999px; color: #6f8069; background: #e8efe4; }
+.eyebrow { margin: 0 0 10px; color: #a18142; font-size: 12px; font-weight: 800; letter-spacing: .24em; text-transform: uppercase; }
+h1, h2 { font-family: 'Cormorant Garamond', Georgia, serif; color: #344132; }
+h1 { margin: 0; font-size: clamp(44px, 9vw, 76px); line-height: .96; }
+h2 { margin: 0; font-size: clamp(32px, 5vw, 48px); line-height: 1; }
+.divider { width: 90px; height: 1px; margin: 28px auto; background: #c8aa6b; }
+.intro { margin: 0 auto; max-width: 560px; font-size: 19px; line-height: 1.7; color: #536050; }
+.subcopy { color: #697266; }
+.start-form { max-width: 440px; margin: 34px auto 0; text-align: left; }
+.start-form label { display: block; margin-bottom: 8px; font-weight: 700; }
+.start-form input { width: 100%; padding: 16px 18px; border: 1px solid #c7d0c2; border-radius: 16px; background: white; outline: none; }
+.start-form input:focus { border-color: #71806c; box-shadow: 0 0 0 4px #e8efe4; }
+.start-form button, .primary { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; padding: 16px 20px; border: 0; border-radius: 16px; color: white; background: #64745f; font-weight: 800; box-shadow: 0 12px 24px rgba(82,101,76,.22); }
+
+.game-shell { width: min(1180px, 100%); margin: 0 auto; padding: 24px 18px 120px; }
+.game-header { display: flex; gap: 18px; align-items: end; justify-content: space-between; padding: 12px 4px 22px; }
+.counter { flex: 0 0 auto; padding: 10px 14px; border-radius: 999px; background: #e8efe4; color: #51604e; font-weight: 800; }
+.hint { display: flex; align-items: center; gap: 9px; margin: 0 0 18px; padding: 13px 16px; border-radius: 14px; color: #676052; background: rgba(255,255,255,.68); }
+.photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.photo-card { position: relative; min-height: 190px; overflow: hidden; padding: 0; border: 3px solid transparent; border-radius: 20px; background: #ddd4c6; box-shadow: 0 8px 22px rgba(72,82,65,.12); transition: transform .16s ease, border-color .16s ease; }
+.photo-card:active { transform: scale(.98); }
+.photo-card.selected { border-color: #b9944f; transform: translateY(-3px); }
+.photo-card img { width: 100%; height: 100%; min-height: 190px; object-fit: cover; display: block; }
+.position { position: absolute; z-index: 2; top: 10px; left: 10px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 999px; color: white; background: rgba(41,50,39,.82); font-weight: 800; }
+.placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #756c60; font-weight: 800; background: linear-gradient(135deg,#eee6da,#d9cfc0); }
+.photo-card img + .placeholder { z-index: -1; }
+.action-bar { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: .7fr 1.3fr; gap: 10px; padding: 12px max(16px, env(safe-area-inset-left)) calc(12px + env(safe-area-inset-bottom)); background: rgba(255,253,248,.92); border-top: 1px solid rgba(117,128,110,.18); backdrop-filter: blur(18px); }
+.action-bar button { margin: 0; padding: 15px 14px; border-radius: 15px; font-weight: 800; }
+.secondary { border: 1px solid #aab5a5; color: #52604f; background: white; }
+.primary { border: 0; }
+
+@media (min-width: 700px) {
+  .game-shell { padding-top: 42px; }
+  .photo-grid { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 18px; }
+  .photo-card, .photo-card img { min-height: 250px; }
+  .action-bar { position: static; max-width: 760px; margin: 30px auto 0; padding: 0; background: transparent; border: 0; backdrop-filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
