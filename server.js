@@ -56,6 +56,13 @@ function rateLimit(req, res, next) {
   if (entry.count > 40) return res.status(429).json({ ok: false, error: 'Trop de requêtes en peu de temps.' });
   next();
 }
+function requireAdmin(req, res, next) {
+  const configuredPin = readEnv('ADMIN_PIN');
+  if (!configuredPin) return res.status(503).json({ ok: false, error: 'ADMIN_PIN non configuré sur Railway.' });
+  const suppliedPin = String(req.headers['x-admin-pin'] || req.body?.pin || '');
+  if (suppliedPin !== configuredPin) return res.status(401).json({ ok: false, error: 'Code administrateur incorrect.' });
+  next();
+}
 async function listAllPhotos(client, bucket) {
   const all = []; let continuationToken;
   do {
@@ -72,8 +79,7 @@ function photoInfo(object) {
 async function readChallengeState(client, bucket) {
   try {
     const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY }));
-    const text = await result.Body.transformToString();
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(await result.Body.transformToString());
     return parsed && typeof parsed === 'object' ? parsed : { tables: {} };
   } catch (error) {
     if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return { tables: {} };
@@ -83,8 +89,20 @@ async function readChallengeState(client, bucket) {
 async function writeChallengeState(client, bucket, state) {
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY, Body: JSON.stringify(state), ContentType: 'application/json', CacheControl: 'no-store' }));
 }
+function normalizeTableData(data = {}) {
+  return { completed: Array.isArray(data.completed) ? data.completed : [], score: Number(data.score || 0), bonus: Number(data.bonus || 0), blocked: Boolean(data.blocked), updatedAt: data.updatedAt || null };
+}
 function leaderboardFromState(state) {
-  return Object.entries(state.tables || {}).map(([name, data]) => ({ name, score: Number(data.score || 0), completed: Array.isArray(data.completed) ? data.completed.length : 0, updatedAt: data.updatedAt || null })).sort((a, b) => b.score - a.score || b.completed - a.completed || a.name.localeCompare(b.name)).map((row, index) => ({ ...row, rank: index + 1 }));
+  return Object.entries(state.tables || {}).map(([name, raw]) => { const data = normalizeTableData(raw); return { name, score: data.score, completed: data.completed.length, blocked: data.blocked, updatedAt: data.updatedAt }; }).sort((a, b) => b.score - a.score || b.completed - a.completed || a.name.localeCompare(b.name)).map((row, index) => ({ ...row, rank: index + 1 }));
+}
+async function mutateChallengeState(config, mutation) {
+  return (challengeWriteQueue = challengeWriteQueue.then(async () => {
+    const client = r2Client(config.values), state = await readChallengeState(client, config.values.bucket);
+    state.tables ||= {};
+    const result = await mutation(state);
+    await writeChallengeState(client, config.values.bucket, state);
+    return result ?? state;
+  }));
 }
 
 app.get('/api/health', (_req, res) => {
@@ -136,9 +154,9 @@ app.get('/api/challenges', async (req, res) => {
     const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
     const table = cleanSegment(req.query.table, '');
     const state = await readChallengeState(r2Client(config.values), config.values.bucket);
-    const completed = table ? (state.tables?.[table]?.completed || []) : [];
+    const current = table ? normalizeTableData(state.tables?.[table]) : normalizeTableData();
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, challenges: CHALLENGES, table, completed, score: table ? Number(state.tables?.[table]?.score || 0) : 0, leaderboard: leaderboardFromState(state) });
+    res.json({ ok: true, challenges: CHALLENGES, table, completed: current.completed, score: current.score, blocked: current.blocked, leaderboard: leaderboardFromState(state) });
   } catch (error) { console.error('Challenge read error:', error?.message || error); res.status(502).json({ ok: false, error: 'Défis indisponibles.' }); }
 });
 
@@ -148,14 +166,63 @@ app.post('/api/challenges/complete', rateLimit, async (req, res) => {
   if (!table || !challenge) return res.status(400).json({ ok: false, error: 'Table ou défi invalide.' });
   try {
     const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const result = await (challengeWriteQueue = challengeWriteQueue.then(async () => {
-      const client = r2Client(config.values), state = await readChallengeState(client, config.values.bucket);
-      state.tables ||= {}; const current = state.tables[table] || { completed: [], score: 0 };
-      if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score = Number(current.score || 0) + challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; await writeChallengeState(client, config.values.bucket, state); }
+    const result = await mutateChallengeState(config, state => {
+      const current = normalizeTableData(state.tables[table]);
+      if (current.blocked) throw new Error('Cette table est temporairement bloquée.');
+      if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score += challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; }
       return { completed: current.completed, score: current.score, leaderboard: leaderboardFromState(state) };
-    }));
+    });
     res.json({ ok: true, ...result });
-  } catch (error) { challengeWriteQueue = Promise.resolve(); console.error('Challenge write error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible de valider le défi.' }); }
+  } catch (error) { challengeWriteQueue = Promise.resolve(); console.error('Challenge write error:', error?.message || error); res.status(502).json({ ok: false, error: error?.message || 'Impossible de valider le défi.' }); }
+});
+
+app.get('/api/admin/challenges', requireAdmin, async (_req, res) => {
+  try {
+    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
+    const state = await readChallengeState(r2Client(config.values), config.values.bucket);
+    const tables = Object.entries(state.tables || {}).map(([name, raw]) => ({ name, ...normalizeTableData(raw) })).sort((a, b) => b.score - a.score);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, challenges: CHALLENGES, tables, leaderboard: leaderboardFromState(state) });
+  } catch (error) { res.status(502).json({ ok: false, error: 'Administration indisponible.' }); }
+});
+
+app.post('/api/admin/challenges/action', requireAdmin, rateLimit, async (req, res) => {
+  const table = cleanSegment(req.body?.table, '');
+  const action = String(req.body?.action || '');
+  if (!table) return res.status(400).json({ ok: false, error: 'Table invalide.' });
+  try {
+    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
+    const result = await mutateChallengeState(config, state => {
+      const current = normalizeTableData(state.tables[table]);
+      if (action === 'adjust') {
+        const delta = Math.max(-2000, Math.min(2000, Number(req.body?.points || 0)));
+        current.score = Math.max(0, current.score + delta);
+        current.bonus += delta;
+      } else if (action === 'remove-challenge') {
+        const id = String(req.body?.challengeId || '');
+        const challenge = CHALLENGES.find(item => item.id === id);
+        if (!challenge || !current.completed.includes(id)) throw new Error('Défi non trouvé pour cette table.');
+        current.completed = current.completed.filter(item => item !== id);
+        current.score = Math.max(0, current.score - challenge.points);
+      } else if (action === 'add-challenge') {
+        const id = String(req.body?.challengeId || '');
+        const challenge = CHALLENGES.find(item => item.id === id);
+        if (!challenge) throw new Error('Défi inconnu.');
+        if (!current.completed.includes(id)) { current.completed.push(id); current.score += challenge.points; }
+      } else if (action === 'toggle-block') {
+        current.blocked = !current.blocked;
+      } else if (action === 'reset') {
+        state.tables[table] = normalizeTableData();
+        return { table: state.tables[table], leaderboard: leaderboardFromState(state) };
+      } else if (action === 'delete-table') {
+        delete state.tables[table];
+        return { deleted: true, leaderboard: leaderboardFromState(state) };
+      } else throw new Error('Action inconnue.');
+      current.updatedAt = new Date().toISOString(); state.tables[table] = current;
+      return { table: current, leaderboard: leaderboardFromState(state) };
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) { challengeWriteQueue = Promise.resolve(); res.status(400).json({ ok: false, error: error?.message || 'Action impossible.' }); }
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
