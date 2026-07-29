@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <title>Mode DJ | Lau & Gio</title>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#050505;color:#fff;font-family:Inter,system-ui,sans-serif}button,select{font:inherit}.stage{position:fixed;inset:0;background:radial-gradient(circle at center,#211b12 0,#090909 55%,#000 100%)}.layer{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity 1.15s ease}.layer.active{opacity:1}.layer img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 20px 55px #000);animation:kenburns 12s ease-out both}.layer::before{content:"";position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(36px) brightness(.24);transform:scale(1.12);z-index:-1}.layer.active img{animation:kenburns 12s ease-out both}@keyframes kenburns{from{transform:scale(1)}to{transform:scale(1.045)}}.shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.25),transparent 28%,transparent 65%,rgba(0,0,0,.72))}.brand{position:absolute;left:34px;top:28px;z-index:5;font-family:Georgia,serif;font-size:clamp(18px,2.1vw,34px);letter-spacing:.06em;text-shadow:0 3px 18px #000}.brand small{display:block;font-family:Inter,system-ui,sans-serif;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#e9ca83;margin-bottom:7px}.caption{position:absolute;left:34px;bottom:30px;z-index:5;max-width:70vw;text-shadow:0 3px 16px #000}.guest{font-family:Georgia,serif;font-size:clamp(25px,3.4vw,54px)}.table{margin-top:4px;color:#e7c981;font-size:clamp(13px,1.3vw,20px);letter-spacing:.12em;text-transform:uppercase}.counter{position:absolute;right:34px;bottom:34px;z-index:5;color:#ddd;font-variant-numeric:tabular-nums}.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px}.empty h1{font-family:Georgia,serif;font-size:clamp(44px,8vw,110px);line-height:.92;margin:0}.empty p{color:#d9bd7c;letter-spacing:.16em;text-transform:uppercase}.controls{position:absolute;left:50%;bottom:24px;z-index:10;transform:translate(-50%,130%);display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #ffffff24;border-radius:22px;background:#0b0b0bdc;backdrop-filter:blur(14px);transition:transform .25s ease}.controls.show,.stage:hover .controls{transform:translate(-50%,0)}.controls button,.controls select{height:44px;border:1px solid #ffffff22;border-radius:14px;background:#1a1a1a;color:#fff;padding:0 15px;cursor:pointer}.controls button:hover,.controls select:hover{background:#2a2a2a}.controls .primary{background:#e8c679;color:#17120a;font-weight:900}.live{position:absolute;right:30px;top:28px;z-index:6;padding:9px 13px;border-radius:999px;background:#101010bb;border:1px solid #ffffff20;font-size:13px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#72df8d;box-shadow:0 0 12px #72df8d;margin-right:7px}.toast{position:absolute;top:78px;left:50%;z-index:15;transform:translate(-50%,-30px);opacity:0;padding:12px 18px;border-radius:999px;background:#f0cc7d;color:#1b160c;font-weight:900;transition:.3s}.toast.show{transform:translate(-50%,0);opacity:1}.flash{position:absolute;inset:0;background:white;z-index:20;pointer-events:none;opacity:0}.flash.go{animation:flash .65s ease-out}@keyframes flash{0%{opacity:.95}100%{opacity:0}}@media(max-width:700px){.brand{left:18px;top:18px}.live{right:18px;top:18px}.caption{left:18px;bottom:82px}.counter{right:18px;bottom:86px}.controls{width:calc(100% - 20px);justify-content:center;flex-wrap:wrap;bottom:10px}.controls button,.controls select{height:40px;padding:0 11px}}
+  </style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <div class="layer active" id="a"><img alt="Souvenir"></div>
+    <div class="layer" id="b"><img alt="Souvenir"></div>
+    <div class="shade"></div>
+    <div class="brand"><small>L’appareil photo de</small>Lau & Gio</div>
+    <div class="live"><span class="dot"></span><span id="status">Connexion…</span></div>
+    <div class="caption" id="caption" hidden><div class="guest" id="guest"></div><div class="table" id="table"></div></div>
+    <div class="counter" id="counter"></div>
+    <section class="empty" id="empty"><div><h1>Nos souvenirs<br>en direct</h1><p>Les premières photos arrivent bientôt</p></div></section>
+    <nav class="controls" id="controls">
+      <button id="prev" aria-label="Photo précédente">◀</button>
+      <button class="primary" id="play">⏸ Pause</button>
+      <button id="next" aria-label="Photo suivante">▶</button>
+      <select id="speed" aria-label="Vitesse"><option value="3000">3 s</option><option value="5000" selected>5 s</option><option value="8000">8 s</option><option value="10000">10 s</option></select>
+      <button id="shuffle">🔀 Aléatoire : non</button>
+      <button id="fullscreen">⛶ Plein écran</button>
+    </nav>
+    <div class="toast" id="toast">📸 Nouvelle photo reçue !</div><div class="flash" id="flash"></div>
+  </main>
+<script>
+const $=id=>document.getElementById(id);let photos=[],index=0,playing=true,random=false,delay=5000,timer=null,front='a',known=new Set(),firstLoad=true;
+function safe(v){return String(v||'').replaceAll('<','&lt;').replaceAll('>','&gt;')}
+function arm(){clearTimeout(timer);if(playing&&photos.length>1)timer=setTimeout(()=>show(random?Math.floor(Math.random()*photos.length):(index+1)%photos.length),delay)}
+function show(i,newPhoto=false){if(!photos.length)return;index=(i+photos.length)%photos.length;const p=photos[index],incoming=front==='a'?'b':'a',outgoing=front;const layer=$(incoming),img=layer.querySelector('img');img.src=p.url;layer.style.setProperty('--bg',`url("${p.url}")`);layer.style.backgroundImage='none';layer.querySelector('img').onload=()=>{layer.classList.add('active');$(outgoing).classList.remove('active');front=incoming};$('empty').hidden=true;$('caption').hidden=false;$('guest').textContent=p.guest||'Invité';$('table').textContent=p.table||'Sans table';$('counter').textContent=`${index+1} / ${photos.length}`;if(newPhoto){$('flash').classList.remove('go');void $('flash').offsetWidth;$('flash').classList.add('go')}arm()}
+async function refresh(){try{const r=await fetch('/api/dashboard',{cache:'no-store'}),d=await r.json();if(!r.ok||!d.ok)throw Error();const incoming=d.recent||[],fresh=incoming.filter(p=>!known.has(p.key));incoming.forEach(p=>known.add(p.key));const current=photos[index]?.key;photos=incoming;if(current){const pos=photos.findIndex(p=>p.key===current);if(pos>=0)index=pos}if(firstLoad){firstLoad=false;if(photos.length)show(0)}else if(fresh.length){$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2400);photos=incoming;show(0,true)}$('status').textContent=`En direct · ${d.total||photos.length} photos`;if(!photos.length){$('empty').hidden=false;$('caption').hidden=true}$('counter').textContent=photos.length?`${index+1} / ${photos.length}`:''}catch{$('status').textContent='Reconnexion…'}}
+$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'⏸ Pause':'▶ Lecture';arm()};$('next').onclick=()=>show(random?Math.floor(Math.random()*photos.length):index+1);$('prev').onclick=()=>show(index-1);$('speed').onchange=e=>{delay=Number(e.target.value);arm()};$('shuffle').onclick=()=>{random=!random;$('shuffle').textContent=`🔀 Aléatoire : ${random?'oui':'non'}`};$('fullscreen').onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch{}};document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(index+1);if(e.key==='ArrowLeft')show(index-1);if(e.key===' '){e.preventDefault();$('play').click()}if(e.key.toLowerCase()==='f')$('fullscreen').click()});let hide;document.addEventListener('mousemove',()=>{$('controls').classList.add('show');clearTimeout(hide);hide=setTimeout(()=>$('controls').classList.remove('show'),2500)});refresh();setInterval(refresh,3000);
+</script>
+</body>
+</html>
