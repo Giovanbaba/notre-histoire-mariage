@@ -7,21 +7,20 @@
     <meta name="description" content="Jeu photo chronologique de notre mariage" />
     <title>Notre histoire en 21 photos</title>
     <style>
+      .wedding-nav{display:none!important}
       .global-game-nav{position:fixed;z-index:9999;left:16px;bottom:16px;display:flex;gap:8px;align-items:center;padding:8px;border-radius:18px;background:#fffdf8ee;border:1px solid #dfe5da;box-shadow:0 14px 40px #50604c44;backdrop-filter:blur(12px)}
       .global-game-nav a{display:flex;align-items:center;gap:7px;padding:10px 12px;border-radius:12px;color:#344132;text-decoration:none;font:700 13px Inter,system-ui,sans-serif;white-space:nowrap}
       .global-game-nav a:hover,.global-game-nav a.active{background:#e8efe4}
       .global-game-nav .icon{font-size:20px}
-      @media(max-width:720px){.global-game-nav{left:8px;right:8px;bottom:8px;justify-content:space-around;padding:6px}.global-game-nav a{flex-direction:column;gap:2px;padding:7px 8px;font-size:10px}.global-game-nav .icon{font-size:21px}.global-game-nav .extra{display:none}}
+      @media(max-width:720px){.global-game-nav{left:8px;right:8px;bottom:8px;justify-content:space-around;padding:6px}.global-game-nav a{flex-direction:column;gap:2px;padding:7px 8px;font-size:10px}.global-game-nav .icon{font-size:21px}}
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <nav class="global-game-nav" aria-label="Navigation entre les jeux">
+    <nav class="global-game-nav" aria-label="Navigation entre les trois applications">
       <a href="https://photos.laura-giova.be/appareil/"><span class="icon">📸</span><span>Photos</span></a>
       <a href="https://www.laura-giova.be/"><span class="icon">🎵</span><span>Hit & Kiss</span></a>
       <a class="active" href="https://photos.laura-giova.be/"><span class="icon">🧩</span><span>Notre histoire</span></a>
-      <a class="extra" href="https://photos.laura-giova.be/defis/"><span class="icon">🎯</span><span>Défis</span></a>
-      <a class="extra" href="https://photos.laura-giova.be/classement/"><span class="icon">🏆</span><span>Classement</span></a>
     </nav>
     <script type="module" src="/src/main.tsx"></script>
   </body>
