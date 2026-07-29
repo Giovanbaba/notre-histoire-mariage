@@ -29,13 +29,35 @@ function cleanSegment(value, fallback) {
   return cleaned || fallback;
 }
 
-function r2Config() {
-  const endpoint = process.env.R2_ENDPOINT?.replace(/\/+$/, '');
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET_NAME;
-  if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) return null;
-  return { endpoint, accessKeyId, secretAccessKey, bucket };
+function readEnv(name) {
+  const value = process.env[name];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function r2ConfigState() {
+  const values = {
+    endpoint: readEnv('R2_ENDPOINT').replace(/\/+$/, ''),
+    accessKeyId: readEnv('R2_ACCESS_KEY_ID'),
+    secretAccessKey: readEnv('R2_SECRET_ACCESS_KEY'),
+    bucket: readEnv('R2_BUCKET_NAME'),
+  };
+
+  const missing = [];
+  if (!values.endpoint) missing.push('R2_ENDPOINT');
+  if (!values.accessKeyId) missing.push('R2_ACCESS_KEY_ID');
+  if (!values.secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
+  if (!values.bucket) missing.push('R2_BUCKET_NAME');
+
+  // Cloudflare affiche parfois l’URL S3 avec /nom-du-bucket à la fin.
+  // Le SDK attend uniquement l’endpoint du compte.
+  if (values.endpoint && values.bucket) {
+    const encodedBucket = encodeURIComponent(values.bucket);
+    values.endpoint = values.endpoint
+      .replace(new RegExp(`/${encodedBucket}$`), '')
+      .replace(new RegExp(`/${values.bucket}$`), '');
+  }
+
+  return { configured: missing.length === 0, missing, values };
 }
 
 function getClientIp(req) {
@@ -61,14 +83,25 @@ function rateLimit(req, res, next) {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, storage: 'cloudflare-r2', storageConfigured: Boolean(r2Config()) });
+  const state = r2ConfigState();
+  res.status(state.configured ? 200 : 503).json({
+    ok: state.configured,
+    storage: 'cloudflare-r2',
+    storageConfigured: state.configured,
+    missingVariables: state.missing,
+  });
 });
 
 app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
   try {
-    const config = r2Config();
-    if (!config) {
-      return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
+    const state = r2ConfigState();
+    if (!state.configured) {
+      console.error('R2 configuration incomplete. Missing:', state.missing.join(', '));
+      return res.status(503).json({
+        ok: false,
+        error: 'Cloudflare R2 n’est pas configuré.',
+        missingVariables: state.missing,
+      });
     }
 
     if (!req.file || !req.file.mimetype.startsWith('image/')) {
@@ -80,6 +113,7 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
       return res.status(415).json({ ok: false, error: 'Format de photo non accepté.' });
     }
 
+    const { endpoint, accessKeyId, secretAccessKey, bucket } = state.values;
     const table = cleanSegment(req.body.table, 'Sans-table');
     const guest = cleanSegment(req.body.guest, 'Invite');
     const roll = String(Math.max(1, Number.parseInt(req.body.roll || '1', 10) || 1)).padStart(2, '0');
@@ -91,15 +125,13 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
 
     const client = new S3Client({
       region: 'auto',
-      endpoint: config.endpoint,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId, secretAccessKey },
     });
 
     await client.send(new PutObjectCommand({
-      Bucket: config.bucket,
+      Bucket: bucket,
       Key: key,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
@@ -109,13 +141,19 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
         table,
         roll,
         shot,
-        uploadedAt: new Date().toISOString(),
+        uploadedat: new Date().toISOString(),
       },
     }));
 
+    console.log(`R2 upload successful: ${key} (${req.file.size} bytes)`);
     res.status(201).json({ ok: true, key, filename });
   } catch (error) {
-    console.error('R2 upload error:', error);
+    console.error('R2 upload error:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.Code || error?.code,
+      status: error?.$metadata?.httpStatusCode,
+    });
     res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' });
   }
 });
@@ -127,5 +165,8 @@ app.use((req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
+  const state = r2ConfigState();
   console.log(`Laura & Giovanni app listening on port ${PORT}`);
+  console.log(`R2 configured: ${state.configured ? 'yes' : 'no'}`);
+  if (!state.configured) console.log(`Missing R2 variables: ${state.missing.join(', ')}`);
 });
