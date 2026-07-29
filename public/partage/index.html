@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f1e7" />
+  <title>Partagez vos souvenirs | Laura & Giovanni</title>
+  <meta name="description" content="Partagez vos photos et vidéos du mariage de Laura et Giovanni." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      font-family: Inter, system-ui, sans-serif;
+      color: #283127;
+      background: #f7f1e7;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(255,255,255,.95), transparent 30%),
+        radial-gradient(circle at 85% 85%, rgba(202,174,116,.18), transparent 35%),
+        linear-gradient(145deg, #fffdf8 0%, #f7f1e7 55%, #eee5d7 100%);
+    }
+    .card {
+      position: relative;
+      width: min(650px, 100%);
+      overflow: hidden;
+      padding: clamp(30px, 7vw, 68px);
+      text-align: center;
+      border: 1px solid rgba(255,255,255,.95);
+      border-radius: 34px;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 26px 80px rgba(72,82,65,.17);
+      backdrop-filter: blur(12px);
+    }
+    .card::before,
+    .card::after {
+      content: "";
+      position: absolute;
+      width: 170px;
+      height: 170px;
+      border: 1px solid rgba(161,129,66,.18);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .card::before { top: -105px; left: -85px; }
+    .card::after { right: -95px; bottom: -110px; }
+    .camera {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #64745f;
+      background: #e8efe4;
+      box-shadow: inset 0 0 0 1px rgba(100,116,95,.08);
+    }
+    .camera svg { width: 36px; height: 36px; }
+    .eyebrow {
+      margin: 0 0 11px;
+      color: #a18142;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .24em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      color: #344132;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: clamp(44px, 9vw, 76px);
+      line-height: .96;
+    }
+    .divider {
+      width: 92px;
+      height: 1px;
+      margin: 28px auto;
+      background: #c8aa6b;
+    }
+    .lead {
+      max-width: 520px;
+      margin: 0 auto;
+      color: #536050;
+      font-size: clamp(17px, 3.8vw, 20px);
+      line-height: 1.65;
+    }
+    .note {
+      max-width: 500px;
+      margin: 16px auto 0;
+      color: #70796d;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .upload-button {
+      width: 100%;
+      max-width: 430px;
+      min-height: 60px;
+      margin: 30px auto 0;
+      padding: 17px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 11px;
+      border: 0;
+      border-radius: 17px;
+      color: #fff;
+      background: #64745f;
+      box-shadow: 0 12px 28px rgba(74,91,69,.22);
+      font: 800 17px Inter, sans-serif;
+      text-decoration: none;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .upload-button:hover {
+      transform: translateY(-2px);
+      background: #586853;
+      box-shadow: 0 16px 34px rgba(74,91,69,.28);
+    }
+    .upload-button:active { transform: translateY(0); }
+    .upload-button svg { width: 23px; height: 23px; }
+    .privacy {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      color: #7c8479;
+      font-size: 12px;
+    }
+    .privacy svg { width: 15px; height: 15px; }
+    .signature {
+      margin: 30px 0 0;
+      color: #a18142;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 25px;
+      font-weight: 700;
+    }
+    @media (max-width: 520px) {
+      body { padding: 14px; }
+      .card { padding: 35px 22px; border-radius: 27px; }
+      .camera { width: 66px; height: 66px; }
+      .upload-button { min-height: 58px; font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="camera" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.5 4 16 6h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2h5Z"/>
+        <circle cx="12" cy="12.5" r="3.5"/>
+      </svg>
+    </div>
+
+    <p class="eyebrow">Laura & Giovanni</p>
+    <h1>Partagez vos souvenirs</h1>
+    <div class="divider"></div>
+
+    <p class="lead">
+      Merci d’avoir vécu cette magnifique journée avec nous. Déposez ici vos photos et vidéos pour nous aider à conserver chaque instant précieux.
+    </p>
+    <p class="note">
+      Vous pourrez sélectionner plusieurs fichiers à la fois. Pour les grosses vidéos, gardez simplement cette page ouverte jusqu’à la fin du transfert.
+    </p>
+
+    <a class="upload-button" href="https://fragapane.quickconnect.to/sharing/AijSdZsOM" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 15v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"/>
+      </svg>
+      Envoyer mes photos et vidéos
+    </a>
+
+    <p class="privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Envoi privé vers notre espace sécurisé
+    </p>
+
+    <p class="signature">Avec tout notre amour ♥</p>
+  </main>
+</body>
+</html>
