@@ -18,10 +18,22 @@
   <body>
     <div id="root"></div>
     <nav class="global-game-nav" aria-label="Navigation entre les trois applications">
-      <a href="https://photos.laura-giova.be/appareil/"><span class="icon">📸</span><span>Photos</span></a>
+      <a href="https://photos.laura-giova.be/connexion/?next=/appareil/"><span class="icon">📸</span><span>Photos</span></a>
       <a href="https://www.laura-giova.be/"><span class="icon">🎵</span><span>Hit & Kiss</span></a>
       <a class="active" href="https://photos.laura-giova.be/"><span class="icon">🧩</span><span>Notre histoire</span></a>
     </nav>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      const ID_COOKIE='lg_identity';
+      function sharedIdentity(){const row=document.cookie.split('; ').find(x=>x.startsWith(ID_COOKIE+'='));if(!row)return null;try{return JSON.parse(decodeURIComponent(row.slice(ID_COOKIE.length+1)))}catch{return null}}
+      const identity=sharedIdentity();
+      if(!identity){location.replace('/connexion/?next=/')}else{
+        localStorage.setItem('lg-guest',`${identity.firstName||''} ${identity.lastName||''}`.trim());
+        localStorage.setItem('lg-table',identity.table||'');
+        const label=identity.table?`${identity.table} · ${identity.firstName} ${identity.lastName}`.trim():`${identity.firstName} ${identity.lastName}`.trim();
+        const observer=new MutationObserver(()=>{const input=document.querySelector('.start-form input');if(!input||input.dataset.identityReady)return;input.dataset.identityReady='1';const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setter.call(input,label);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))});
+        observer.observe(document.documentElement,{subtree:true,childList:true});
+      }
+    </script>
   </body>
 </html>
