@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#15110b">
+  <title>Mur de souvenirs | Lau & Gio</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#17120c;color:#fff;font-family:Inter,system-ui,sans-serif}button{font:inherit}.wall{position:fixed;inset:0;overflow:hidden;background:
+      radial-gradient(circle at 20% 15%,rgba(232,198,121,.11),transparent 24%),
+      radial-gradient(circle at 85% 70%,rgba(255,255,255,.05),transparent 22%),
+      linear-gradient(135deg,#2a2116,#100d09 55%,#090806)}
+    .wall::before{content:"";position:absolute;inset:0;opacity:.18;pointer-events:none;background-image:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.03) 4px),repeating-linear-gradient(90deg,transparent 0 5px,rgba(0,0,0,.035) 6px)}
+    .header{position:absolute;z-index:100;top:25px;left:30px;text-shadow:0 3px 18px #000}.header small{display:block;color:#e7c67b;letter-spacing:.27em;text-transform:uppercase;font-size:11px;margin-bottom:5px}.header h1{font-family:Georgia,serif;font-weight:400;font-size:clamp(28px,4vw,58px);margin:0}.status{position:absolute;z-index:100;top:28px;right:28px;padding:9px 14px;border:1px solid #ffffff24;border-radius:999px;background:#0a0806b8;backdrop-filter:blur(12px);font-size:13px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#70df8b;box-shadow:0 0 12px #70df8b;margin-right:7px}.count{position:absolute;z-index:100;right:30px;bottom:28px;text-align:right;text-shadow:0 3px 15px #000}.count strong{display:block;font-family:Georgia,serif;font-size:clamp(38px,5vw,70px);line-height:.9;color:#efd084}.count span{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#ddd}.board{position:absolute;inset:0}.polaroid{position:absolute;width:clamp(145px,15vw,245px);padding:10px 10px 34px;background:#f4f0e8;color:#28231d;border-radius:3px;box-shadow:0 18px 45px rgba(0,0,0,.48);transform-origin:50% 50%;will-change:transform,opacity;cursor:pointer;transition:filter .2s,box-shadow .2s}.polaroid:hover{filter:brightness(1.04);box-shadow:0 25px 65px rgba(0,0,0,.62);z-index:90!important}.polaroid img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#ddd}.polaroid .meta{position:absolute;left:12px;right:12px;bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:end;font-size:11px;color:#5a5147}.polaroid .guest{font-family:Georgia,serif;font-size:14px;color:#2d261f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.polaroid.new{animation:dropIn 1.05s cubic-bezier(.18,.89,.32,1.28) both}.polaroid.initial{animation:fadePlace .55s ease both}@keyframes dropIn{0%{opacity:0;transform:translate(var(--start-x),-120vh) rotate(var(--start-r)) scale(1.25)}72%{opacity:1;transform:translate(0,14px) rotate(var(--rotation)) scale(.96)}100%{opacity:1;transform:translate(0,0) rotate(var(--rotation)) scale(1)}}@keyframes fadePlace{from{opacity:0;transform:scale(.8) rotate(0deg)}to{opacity:1;transform:scale(1) rotate(var(--rotation))}}.flash{position:absolute;inset:0;z-index:200;background:#fff;opacity:0;pointer-events:none}.flash.go{animation:flash .62s ease-out}@keyframes flash{0%{opacity:.92}100%{opacity:0}}.toast{position:absolute;z-index:210;top:90px;left:50%;transform:translate(-50%,-24px);opacity:0;padding:12px 18px;border-radius:999px;background:#efcc7d;color:#1a150c;font-weight:900;transition:.3s}.toast.show{opacity:1;transform:translate(-50%,0)}.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:40px;z-index:5}.empty h2{font-family:Georgia,serif;font-weight:400;font-size:clamp(44px,7vw,100px);line-height:.95;margin:0}.empty p{margin:18px 0 0;color:#e4c47a;letter-spacing:.14em;text-transform:uppercase}.controls{position:absolute;z-index:120;left:50%;bottom:22px;display:flex;gap:8px;align-items:center;padding:9px;border:1px solid #ffffff22;border-radius:18px;background:#0a0806d8;backdrop-filter:blur(14px);transform:translate(-50%,130%);transition:.25s}.wall:hover .controls,.controls.show{transform:translate(-50%,0)}.controls button{height:42px;border:1px solid #ffffff20;border-radius:12px;background:#1b1712;color:#fff;padding:0 14px;cursor:pointer}.controls button:hover{background:#30271d}.controls .primary{background:#e7c478;color:#171109;font-weight:900}.modal{position:fixed;inset:0;z-index:300;display:none;place-items:center;padding:30px;background:rgba(0,0,0,.88);backdrop-filter:blur(14px)}.modal.open{display:grid}.modal img{max-width:92vw;max-height:84vh;object-fit:contain;box-shadow:0 25px 90px #000}.modal .info{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);text-align:center}.modal .info strong{font-family:Georgia,serif;font-size:26px}.modal .info span{display:block;margin-top:4px;color:#e5c579}.modal button{position:absolute;right:24px;top:24px;width:48px;height:48px;border:1px solid #ffffff2d;border-radius:50%;background:#161616;color:#fff;font-size:23px;cursor:pointer}@media(max-width:700px){.header{top:18px;left:18px}.status{top:18px;right:18px}.count{right:18px;bottom:78px}.polaroid{width:130px;padding:7px 7px 29px}.polaroid .guest{font-size:12px}.polaroid .meta{left:8px;right:8px;font-size:9px}.controls{width:calc(100% - 20px);justify-content:center;bottom:10px;flex-wrap:wrap}.controls button{height:38px;padding:0 10px}}
+  </style>
+</head>
+<body>
+  <main class="wall" id="wall">
+    <header class="header"><small>L’appareil photo de</small><h1>Notre mur de souvenirs</h1></header>
+    <div class="status"><span class="dot"></span><span id="status">Connexion…</span></div>
+    <div class="count"><strong id="count">0</strong><span>souvenirs partagés</span></div>
+    <section class="board" id="board"></section>
+    <section class="empty" id="empty"><div><h2>Le mur attend<br>vos souvenirs</h2><p>Scannez le QR code et prenez la première photo</p></div></section>
+    <div class="controls" id="controls">
+      <button id="shuffle">🔀 Mélanger</button>
+      <button id="clear">🧹 Réorganiser</button>
+      <button id="fullscreen" class="primary">⛶ Plein écran</button>
+    </div>
+    <div class="toast" id="toast">📸 Nouveau souvenir ajouté !</div>
+    <div class="flash" id="flash"></div>
+  </main>
+  <div class="modal" id="modal"><button id="close">×</button><img id="modalImg" alt="Souvenir agrandi"><div class="info"><strong id="modalGuest"></strong><span id="modalTable"></span></div></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const board = $('board');
+  let known = new Set();
+  let cards = [];
+  let firstLoad = true;
+  let busy = false;
+
+  function hash(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+  function seeded(key,min,max){return min+(hash(key)%10000)/10000*(max-min)}
+  function layout(photo,index,total){
+    const vw=window.innerWidth,vh=window.innerHeight;
+    const card=Math.max(145,Math.min(245,vw*.15));
+    const topSafe=Math.min(125,vh*.17),bottomSafe=75;
+    const usableW=Math.max(20,vw-card-24),usableH=Math.max(20,vh-card-topSafe-bottomSafe);
+    const cols=Math.max(2,Math.floor(vw/(card*.72)));
+    const row=Math.floor(index/cols),col=index%cols;
+    const rows=Math.max(1,Math.ceil(total/cols));
+    const xBase=cols===1?usableW/2:(col/(cols-1))*usableW;
+    const yBase=rows===1?usableH/2:(row/(rows-1))*usableH;
+    const jitterX=seeded(photo.key+'x',-card*.22,card*.22);
+    const jitterY=seeded(photo.key+'y',-card*.18,card*.18);
+    return {x:Math.max(10,Math.min(usableW,xBase+jitterX)),y:topSafe+Math.max(4,Math.min(usableH,yBase+jitterY)),r:seeded(photo.key+'r',-8,8)};
+  }
+  function makeCard(photo,isNew,index,total){
+    const el=document.createElement('article');
+    el.className='polaroid '+(isNew?'new':'initial');
+    el.dataset.key=photo.key;
+    const p=layout(photo,index,total);
+    el.style.left=p.x+'px';el.style.top=p.y+'px';el.style.setProperty('--rotation',p.r+'deg');
+    el.style.setProperty('--start-r',seeded(photo.key+'sr',-28,28)+'deg');el.style.setProperty('--start-x',seeded(photo.key+'sx',-220,220)+'px');
+    el.style.zIndex=String(index+1);
+    el.innerHTML=`<img src="${photo.url}" alt="Souvenir de ${escapeHtml(photo.guest||'Invité')}" loading="eager"><div class="meta"><span class="guest">${escapeHtml(photo.guest||'Invité')}</span><span>${escapeHtml(photo.table||'')}</span></div>`;
+    el.addEventListener('click',()=>openModal(photo));
+    return el;
+  }
+  function escapeHtml(v){return String(v||'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+  function openModal(p){$('modalImg').src=p.url;$('modalGuest').textContent=p.guest||'Invité';$('modalTable').textContent=p.table||'';$('modal').classList.add('open')}
+  function closeModal(){$('modal').classList.remove('open');$('modalImg').src=''}
+  function celebrate(){const f=$('flash'),t=$('toast');f.classList.remove('go');void f.offsetWidth;f.classList.add('go');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+  function renderAll(photos,animate=false){
+    cards=photos.slice(0,80).reverse();
+    board.innerHTML='';
+    cards.forEach((p,i)=>board.appendChild(makeCard(p,animate,i,cards.length)));
+    $('empty').style.display=cards.length?'none':'grid';$('count').textContent=photos.length;
+  }
+  function addNew(newPhotos,allPhotos){
+    if(!newPhotos.length)return;
+    renderAll(allPhotos,true);celebrate();
+  }
+  async function load(){
+    if(busy)return;busy=true;
+    try{
+      const r=await fetch('/api/dashboard',{cache:'no-store'}),d=await r.json();
+      if(!r.ok||!d.ok)throw new Error('dashboard');
+      $('status').textContent='Mur en direct';
+      const incoming=d.recent.filter(p=>!known.has(p.key));
+      if(firstLoad){renderAll(d.recent,false);firstLoad=false}else addNew(incoming,d.recent);
+      d.recent.forEach(p=>known.add(p.key));$('count').textContent=d.total;
+    }catch(e){$('status').textContent='Connexion interrompue'}finally{busy=false}
+  }
+  function rearrange(random=false){
+    const list=[...cards];if(random)list.sort(()=>Math.random()-.5);
+    const elements=[...board.children];
+    elements.forEach((el,i)=>{const p=list[i]||cards[i];const pos=layout(p,i,elements.length);el.style.transition='left .65s ease,top .65s ease,transform .65s ease';el.style.left=pos.x+'px';el.style.top=pos.y+'px';el.style.transform=`rotate(${random?seeded(p.key+Date.now(),-10,10):pos.r}deg)`;setTimeout(()=>el.style.transition='',700)})
+  }
+  $('shuffle').addEventListener('click',()=>rearrange(true));
+  $('clear').addEventListener('click',()=>rearrange(false));
+  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch{}});
+  $('close').addEventListener('click',closeModal);$('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if(e.key.toLowerCase()==='f')$('fullscreen').click();if(e.key.toLowerCase()==='m')$('shuffle').click()});
+  window.addEventListener('resize',()=>rearrange(false));
+  load();setInterval(load,3000);
+})();
+</script>
+</body>
+</html>
