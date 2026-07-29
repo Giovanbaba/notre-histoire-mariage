@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#131313" />
+  <title>Notre appareil photo | Laura & Giovanni</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,sans-serif;background:#111;color:#fff}button,input{font:inherit}
+    body{min-height:100svh;overflow:hidden}.screen{min-height:100svh;display:none}.screen.active{display:flex}
+    #welcome{align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at top,#40382d 0,#171717 46%,#090909 100%)}
+    .camera-body{width:min(560px,100%);padding:30px 24px 26px;border:1px solid #454545;border-radius:34px;background:linear-gradient(145deg,#303030,#171717);box-shadow:0 30px 90px rgba(0,0,0,.55)}
+    .brand{font-size:12px;letter-spacing:.25em;text-transform:uppercase;color:#e6c17c;text-align:center}.title{margin:14px 0 8px;font-family:Georgia,serif;font-size:clamp(40px,9vw,66px);line-height:.95;text-align:center}.subtitle{margin:0 auto 24px;max-width:420px;text-align:center;color:#c9c9c9;line-height:1.55}
+    .film-window{display:flex;align-items:center;justify-content:space-between;margin:22px 0;padding:18px 20px;border-radius:18px;background:#080808;border:1px solid #3d3d3d}.film-window b{font-size:32px;color:#f5d28c}.film-window span{color:#aaa}
+    .filmstrip{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin:18px 0 26px}.frame{aspect-ratio:1;border:1px solid #666;border-radius:3px;background:#181818}.frame.used{background:#f0c56d;border-color:#f0c56d;box-shadow:0 0 10px rgba(240,197,109,.25)}
+    .primary{width:100%;min-height:60px;border:0;border-radius:18px;background:#f3c86d;color:#1b1710;font-weight:900;font-size:18px;cursor:pointer}.secondary{width:100%;min-height:50px;margin-top:12px;border:1px solid #555;border-radius:16px;background:transparent;color:#fff;font-weight:800}
+    #camera{position:relative;flex-direction:column;background:#000}.topbar{position:absolute;z-index:4;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;background:linear-gradient(#000b,transparent)}.counter{padding:9px 13px;border-radius:999px;background:#111c;border:1px solid #555;font-weight:900;color:#f5d28c}.close{width:44px;height:44px;border:0;border-radius:50%;background:#111c;color:#fff;font-size:20px}
+    video{width:100%;height:100svh;object-fit:cover;background:#000}.controls{position:absolute;z-index:4;left:0;right:0;bottom:0;padding:20px 20px calc(22px + env(safe-area-inset-bottom));display:grid;grid-template-columns:60px 1fr 60px;align-items:center;background:linear-gradient(transparent,#000d)}
+    .shutter{justify-self:center;width:88px;height:88px;border-radius:50%;border:7px solid #fff;background:#eee;box-shadow:0 0 0 3px #777;cursor:pointer}.thumb{width:54px;height:54px;border-radius:12px;border:2px solid #fff;background:#222 center/cover}.switch{width:54px;height:54px;border:0;border-radius:50%;background:#222c;color:#fff;font-size:24px}.flash{position:absolute;z-index:5;inset:0;background:#fff;opacity:0;pointer-events:none}.flash.on{animation:flash .28s ease}@keyframes flash{0%{opacity:0}35%{opacity:.9}100%{opacity:0}}
+    #gallery{overflow:auto;flex-direction:column;min-height:100svh;padding:calc(24px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));background:#171717}.gallery-head{max-width:760px;width:100%;margin:0 auto}.gallery-head h1{margin:0 0 6px;font-family:Georgia,serif;font-size:42px}.gallery-head p{color:#bbb}.grid{width:100%;max-width:760px;margin:20px auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.shot{position:relative;aspect-ratio:1;overflow:hidden;border-radius:12px;background:#333}.shot img{width:100%;height:100%;object-fit:cover}.shot span{position:absolute;right:6px;bottom:6px;padding:4px 7px;border-radius:999px;background:#000b;font-size:11px}.actions{width:100%;max-width:760px;margin:auto auto 0}.notice{margin:12px 0;padding:14px;border-radius:14px;background:#292929;color:#cfcfcf;font-size:13px;line-height:1.45}.hidden{display:none!important}
+    @media(min-width:700px){.filmstrip{grid-template-columns:repeat(24,1fr)}.grid{grid-template-columns:repeat(5,1fr)}}
+  </style>
+</head>
+<body>
+  <section id="welcome" class="screen active">
+    <div class="camera-body">
+      <div class="brand">Laura & Giovanni</div>
+      <h1 class="title">Notre appareil photo</h1>
+      <p class="subtitle">Aucun filtre. Juste vos vrais souvenirs, avec l’esprit d’un appareil jetable et une pellicule de 24 vues.</p>
+      <div class="film-window"><span>Pellicule n°<b id="rollNo">1</b></span><span><b id="welcomeCount">0</b> / 24</span></div>
+      <div class="filmstrip" id="welcomeStrip"></div>
+      <button class="primary" id="startBtn">Ouvrir l’appareil photo</button>
+      <button class="secondary" id="galleryBtn">Voir les photos prises</button>
+    </div>
+  </section>
+
+  <section id="camera" class="screen">
+    <div class="topbar"><button class="close" id="closeCamera">×</button><div class="counter"><span id="liveCount">0</span> / 24</div></div>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas" class="hidden"></canvas><div class="flash" id="flash"></div>
+    <div class="controls"><button class="thumb" id="thumb" aria-label="Voir les photos"></button><button class="shutter" id="shutter" aria-label="Prendre une photo"></button><button class="switch" id="switchCamera" aria-label="Changer de caméra">↻</button></div>
+  </section>
+
+  <section id="gallery" class="screen">
+    <div class="gallery-head"><div class="brand" style="text-align:left">Laura & Giovanni</div><h1>Votre pellicule</h1><p><span id="galleryCount">0</span> photo(s) conservée(s) sur ce téléphone.</p></div>
+    <div class="grid" id="grid"></div>
+    <div class="actions">
+      <div class="notice">Les photos restent dans ce navigateur jusqu’à leur transfert. Le bouton ci-dessous ouvre l’espace Synology sécurisé. Pour cette première version, il faudra y sélectionner les photos à envoyer.</div>
+      <button class="primary" id="nasBtn">Envoyer vers le NAS</button>
+      <button class="secondary" id="backCamera">Reprendre des photos</button>
+      <button class="secondary" id="clearBtn">Effacer cette pellicule</button>
+    </div>
+  </section>
+
+<script>
+const LIMIT=24, NAS='https://fragapane.quickconnect.to/sharing/AijSdZsOM';
+let stream=null, facing='environment', shots=[];
+const $=id=>document.getElementById(id);
+function show(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
+function buildStrip(){const used=shots.length%LIMIT;const html=Array.from({length:LIMIT},(_,i)=>`<i class="frame ${i<used?'used':''}"></i>`).join('');$('welcomeStrip').innerHTML=html;$('welcomeCount').textContent=used;$('liveCount').textContent=used;$('rollNo').textContent=Math.floor(shots.length/LIMIT)+1;$('galleryCount').textContent=shots.length}
+function save(){localStorage.setItem('lg-disposable-shots',JSON.stringify(shots));buildStrip();renderGallery()}
+function load(){try{shots=JSON.parse(localStorage.getItem('lg-disposable-shots')||'[]')}catch{shots=[]}buildStrip();renderGallery()}
+async function startCamera(){try{if(stream)stream.getTracks().forEach(t=>t.stop());stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false});$('video').srcObject=stream;show('camera')}catch(e){alert("Impossible d’ouvrir la caméra. Autorisez l’accès à la caméra dans votre navigateur.")}}
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+function capture(){const v=$('video');if(!v.videoWidth)return;const c=$('canvas');const max=1920,scale=Math.min(1,max/v.videoWidth);c.width=Math.round(v.videoWidth*scale);c.height=Math.round(v.videoHeight*scale);c.getContext('2d').drawImage(v,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',.9);shots.push({data,time:Date.now(),roll:Math.floor((shots.length)/LIMIT)+1,index:(shots.length%LIMIT)+1});save();$('flash').classList.remove('on');void $('flash').offsetWidth;$('flash').classList.add('on');if(navigator.vibrate)navigator.vibrate(35);$('thumb').style.backgroundImage=`url(${data})`;if(shots.length%LIMIT===0){setTimeout(()=>alert('Pellicule terminée ! Une nouvelle pellicule est chargée automatiquement.'),350)}}
+function renderGallery(){$('grid').innerHTML=shots.map((s,i)=>`<div class="shot"><img src="${s.data}" alt="Photo ${i+1}"><span>${s.roll}-${String(s.index).padStart(2,'0')}</span></div>`).join('');if(shots.length)$('thumb').style.backgroundImage=`url(${shots.at(-1).data})`}
+$('startBtn').onclick=startCamera;$('galleryBtn').onclick=()=>show('gallery');$('closeCamera').onclick=()=>{stopCamera();show('welcome')};$('shutter').onclick=capture;$('thumb').onclick=()=>{stopCamera();show('gallery')};$('backCamera').onclick=startCamera;$('switchCamera').onclick=()=>{facing=facing==='environment'?'user':'environment';startCamera()};$('nasBtn').onclick=()=>window.open(NAS,'_blank','noopener');$('clearBtn').onclick=()=>{if(confirm('Effacer toutes les photos conservées sur ce téléphone ?')){shots=[];save()}};window.addEventListener('beforeunload',stopCamera);load();
+</script>
+</body>
+</html>
