@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const recentUploads = new Map();
 const CHALLENGE_STATE_KEY = 'mariage-2026-system/challenges.json';
-const AI_STATE_KEY = 'mariage-2026-system/ai-analyses.json';
+const AI_STATE_KEY = 'mariage-2026-system/ai-analyses-v2.json';
 let challengeWriteQueue = Promise.resolve();
 let aiWriteQueue = Promise.resolve();
 
@@ -33,214 +33,37 @@ const CHALLENGES = [
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
-
-function cleanSegment(value, fallback) {
-  const cleaned = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
-  return cleaned || fallback;
-}
+function cleanSegment(value, fallback) { const cleaned = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 50); return cleaned || fallback; }
 function readEnv(name) { const value = process.env[name]; return typeof value === 'string' ? value.trim() : ''; }
-function r2ConfigState() {
-  const values = { endpoint: readEnv('R2_ENDPOINT').replace(/\/+$/, ''), accessKeyId: readEnv('R2_ACCESS_KEY_ID'), secretAccessKey: readEnv('R2_SECRET_ACCESS_KEY'), bucket: readEnv('R2_BUCKET_NAME') };
-  const missing = [];
-  if (!values.endpoint) missing.push('R2_ENDPOINT');
-  if (!values.accessKeyId) missing.push('R2_ACCESS_KEY_ID');
-  if (!values.secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
-  if (!values.bucket) missing.push('R2_BUCKET_NAME');
-  if (values.endpoint && values.bucket) values.endpoint = values.endpoint.replace(new RegExp(`/${encodeURIComponent(values.bucket)}$`), '').replace(new RegExp(`/${values.bucket}$`), '');
-  return { configured: missing.length === 0, missing, values };
-}
+function r2ConfigState() { const values = { endpoint: readEnv('R2_ENDPOINT').replace(/\/+$/, ''), accessKeyId: readEnv('R2_ACCESS_KEY_ID'), secretAccessKey: readEnv('R2_SECRET_ACCESS_KEY'), bucket: readEnv('R2_BUCKET_NAME') }; const missing = Object.entries(values).filter(([,v]) => !v).map(([k]) => ({ endpoint:'R2_ENDPOINT',accessKeyId:'R2_ACCESS_KEY_ID',secretAccessKey:'R2_SECRET_ACCESS_KEY',bucket:'R2_BUCKET_NAME' })[k]); if (values.endpoint && values.bucket) values.endpoint = values.endpoint.replace(new RegExp(`/${encodeURIComponent(values.bucket)}$`), '').replace(new RegExp(`/${values.bucket}$`), ''); return { configured: missing.length === 0, missing, values }; }
 function r2Client(values) { return new S3Client({ region: 'auto', endpoint: values.endpoint, forcePathStyle: true, credentials: { accessKeyId: values.accessKeyId, secretAccessKey: values.secretAccessKey } }); }
 function getClientIp(req) { return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim(); }
-function rateLimit(req, res, next) {
-  const now = Date.now(), ip = getClientIp(req), entry = recentUploads.get(ip) || { count: 0, resetAt: now + 60_000 };
-  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 60_000; }
-  entry.count += 1; recentUploads.set(ip, entry);
-  if (entry.count > 40) return res.status(429).json({ ok: false, error: 'Trop de requêtes en peu de temps.' });
-  next();
-}
-function requireAdmin(req, res, next) {
-  const configuredPin = readEnv('ADMIN_PIN');
-  if (!configuredPin) return res.status(503).json({ ok: false, error: 'ADMIN_PIN non configuré sur Railway.' });
-  const suppliedPin = String(req.headers['x-admin-pin'] || req.body?.pin || '');
-  if (suppliedPin !== configuredPin) return res.status(401).json({ ok: false, error: 'Code administrateur incorrect.' });
-  next();
-}
-async function listAllPhotos(client, bucket) {
-  const all = []; let continuationToken;
-  do {
-    const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'mariage-2026/', MaxKeys: 1000, ContinuationToken: continuationToken }));
-    all.push(...(page.Contents || [])); continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
-  } while (continuationToken);
-  return all.filter(o => o.Key && o.Size > 0 && !o.Key.startsWith('mariage-2026-system/')).sort((a, b) => new Date(b.LastModified || 0) - new Date(a.LastModified || 0));
-}
-function photoInfo(object) {
-  const parts = String(object.Key || '').split('/'), table = parts[1] || 'Sans-table', filename = parts.at(-1) || '';
-  const match = filename.match(/^(.*?)_PEL(\d+)_(\d+)_/);
-  return { table, guest: match?.[1] || 'Invite', roll: Number(match?.[2] || 1), shot: Number(match?.[3] || 1) };
-}
-async function readJsonObject(client, bucket, key, fallback) {
-  try {
-    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-    const parsed = JSON.parse(await result.Body.transformToString());
-    return parsed && typeof parsed === 'object' ? parsed : fallback;
-  } catch (error) {
-    if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return fallback;
-    throw error;
-  }
-}
-async function writeJsonObject(client, bucket, key, value) {
-  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: JSON.stringify(value), ContentType: 'application/json', CacheControl: 'no-store' }));
-}
-async function readChallengeState(client, bucket) { return readJsonObject(client, bucket, CHALLENGE_STATE_KEY, { tables: {} }); }
-async function writeChallengeState(client, bucket, state) { return writeJsonObject(client, bucket, CHALLENGE_STATE_KEY, state); }
-function normalizeTableData(data = {}) { return { completed: Array.isArray(data.completed) ? data.completed : [], score: Number(data.score || 0), bonus: Number(data.bonus || 0), blocked: Boolean(data.blocked), updatedAt: data.updatedAt || null }; }
-function leaderboardFromState(state) {
-  return Object.entries(state.tables || {}).map(([name, raw]) => { const data = normalizeTableData(raw); return { name, score: data.score, completed: data.completed.length, blocked: data.blocked, updatedAt: data.updatedAt }; }).sort((a, b) => b.score - a.score || b.completed - a.completed || a.name.localeCompare(b.name)).map((row, index) => ({ ...row, rank: index + 1 }));
-}
-async function mutateChallengeState(config, mutation) {
-  return (challengeWriteQueue = challengeWriteQueue.then(async () => {
-    const client = r2Client(config.values), state = await readChallengeState(client, config.values.bucket);
-    state.tables ||= {}; const result = await mutation(state); await writeChallengeState(client, config.values.bucket, state); return result ?? state;
-  }));
-}
-function fallbackAnalysis(key, guest, table) {
-  const vibes = [
-    ['🧙', 'Grand sorcier de la soirée', 'On dirait que la magie vient officiellement de changer de table.'],
-    ['⚔️', 'Chef viking en mission', 'Cette photo dégage une énergie de conquête absolument incontrôlable.'],
-    ['🎬', 'Héros de film d’action', 'Quelqu’un vient clairement de décrocher le premier rôle du mariage.'],
-    ['🕶️', 'Boss du cinéma', 'Cette entrée mérite une musique dramatique et un ralenti.'],
-    ['👑', 'Royauté de la piste', 'Le tapis rouge n’était manifestement pas assez long.'],
-    ['🚀', 'Équipage intergalactique', 'Cette table semble prête à sauver la galaxie avant le dessert.']
-  ];
-  let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const [emoji, title, comment] = vibes[h % vibes.length];
-  return { emoji, title, comment: `${guest || 'Cet invité'} de ${table || 'cette table'} : ${comment}`, badge: title, score: 70 + (h % 30), source: 'fallback', createdAt: new Date().toISOString() };
-}
-async function openAiAnalysis(imageUrl, guest, table) {
-  const apiKey = readEnv('OPENAI_API_KEY');
-  if (!apiKey) return null;
-  const model = readEnv('AI_VISION_MODEL') || 'gpt-4.1-mini';
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      input: [{ role: 'user', content: [
-        { type: 'input_text', text: `Analyse cette photo de mariage de façon drôle et bienveillante. N’identifie jamais une personne réelle, une célébrité ou un personnage précis. Décris seulement une vibe ou un archétype visuel inspiré par les vêtements, accessoires, pose et ambiance, par exemple grand sorcier, chef viking, héros de film d’action ou boss des années 1920. Réponds exclusivement en JSON valide avec emoji, title, comment, badge et score (entier de 0 à 100). Le commentaire doit faire une seule phrase en français, adaptée à une annonce dans une salle. Prénom déclaré: ${guest}. Table: ${table}.` },
-        { type: 'input_image', image_url: imageUrl, detail: 'low' }
-      ] }],
-      max_output_tokens: 220
-    })
-  });
-  if (!response.ok) throw new Error(`OpenAI ${response.status}`);
-  const data = await response.json();
-  const text = data.output_text || data.output?.flatMap(x => x.content || []).find(x => x.type === 'output_text')?.text || '';
-  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, '').trim());
-  return { emoji: String(parsed.emoji || '✨').slice(0, 8), title: String(parsed.title || 'Star de la soirée').slice(0, 80), comment: String(parsed.comment || 'Cette photo mérite son moment de gloire.').slice(0, 240), badge: String(parsed.badge || parsed.title || 'Star de la soirée').slice(0, 80), score: Math.max(0, Math.min(100, Number(parsed.score || 75))), source: 'openai', createdAt: new Date().toISOString() };
-}
+function rateLimit(req,res,next){const now=Date.now(),ip=getClientIp(req),entry=recentUploads.get(ip)||{count:0,resetAt:now+60000};if(now>entry.resetAt){entry.count=0;entry.resetAt=now+60000}entry.count++;recentUploads.set(ip,entry);if(entry.count>50)return res.status(429).json({ok:false,error:'Trop de requêtes en peu de temps.'});next()}
+function requireAdmin(req,res,next){const configured=readEnv('ADMIN_PIN');if(!configured)return res.status(503).json({ok:false,error:'ADMIN_PIN non configuré sur Railway.'});const supplied=String(req.headers['x-admin-pin']||req.body?.pin||'');if(supplied!==configured)return res.status(401).json({ok:false,error:'Code administrateur incorrect.'});next()}
+async function listAllPhotos(client,bucket){const all=[];let continuationToken;do{const page=await client.send(new ListObjectsV2Command({Bucket:bucket,Prefix:'mariage-2026/',MaxKeys:1000,ContinuationToken:continuationToken}));all.push(...(page.Contents||[]));continuationToken=page.IsTruncated?page.NextContinuationToken:undefined}while(continuationToken);return all.filter(o=>o.Key&&o.Size>0&&!o.Key.startsWith('mariage-2026-system/')).sort((a,b)=>new Date(b.LastModified||0)-new Date(a.LastModified||0))}
+function photoInfo(object){const parts=String(object.Key||'').split('/'),table=parts[1]||'Sans-table',filename=parts.at(-1)||'',match=filename.match(/^(.*?)_PEL(\d+)_(\d+)_/);return{table,guest:match?.[1]||'Invite',roll:Number(match?.[2]||1),shot:Number(match?.[3]||1)}}
+async function readJsonObject(client,bucket,key,fallback){try{const result=await client.send(new GetObjectCommand({Bucket:bucket,Key:key}));const parsed=JSON.parse(await result.Body.transformToString());return parsed&&typeof parsed==='object'?parsed:fallback}catch(error){if(error?.name==='NoSuchKey'||error?.$metadata?.httpStatusCode===404)return fallback;throw error}}
+async function writeJsonObject(client,bucket,key,value){await client.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:JSON.stringify(value),ContentType:'application/json',CacheControl:'no-store'}))}
+async function readChallengeState(client,bucket){return readJsonObject(client,bucket,CHALLENGE_STATE_KEY,{tables:{}})}
+function normalizeTableData(data={}){return{completed:Array.isArray(data.completed)?data.completed:[],score:Number(data.score||0),bonus:Number(data.bonus||0),blocked:Boolean(data.blocked),updatedAt:data.updatedAt||null}}
+function leaderboardFromState(state){return Object.entries(state.tables||{}).map(([name,raw])=>{const d=normalizeTableData(raw);return{name,score:d.score,completed:d.completed.length,blocked:d.blocked,updatedAt:d.updatedAt}}).sort((a,b)=>b.score-a.score||b.completed-a.completed||a.name.localeCompare(b.name)).map((row,index)=>({...row,rank:index+1}))}
+async function mutateChallengeState(config,mutation){return(challengeWriteQueue=challengeWriteQueue.then(async()=>{const client=r2Client(config.values),state=await readChallengeState(client,config.values.bucket);state.tables||={};const result=await mutation(state);await writeJsonObject(client,config.values.bucket,CHALLENGE_STATE_KEY,state);return result??state}))}
+function clampText(value,max,fallback=''){return String(value||fallback).trim().slice(0,max)}
+async function openAiAnalysis(imageUrl,guest,table){const apiKey=readEnv('OPENAI_API_KEY');if(!apiKey)throw new Error('OPENAI_API_KEY non configurée.');const model=readEnv('AI_VISION_MODEL')||'gpt-5-mini';const prompt=`Tu animes un jeu de mariage appelé « Sosie IA », basé réellement sur le cliché joint. Observe uniquement des éléments visibles et non sensibles : coiffure, barbe, lunettes, accessoires, tenue, couleurs, expression, posture, composition et ambiance. Ne prétends jamais reconnaître ou identifier une personne réelle, une célébrité ou un personnage protégé. Ne déduis pas l’identité, l’origine, la santé, la religion ou d’autres données sensibles. Génère trois personnages-archétypes ORIGINAUX et spécifiques à cette photo, classés du plus convaincant au moins convaincant. Ils doivent être variés, drôles, bienveillants et fondés sur les indices observés, jamais choisis au hasard. Donne aussi 3 à 6 observations visuelles concrètes. Réponds uniquement en JSON valide sous cette forme : {"emoji":"","title":"","comment":"","badge":"","score":0,"observations":[""],"profiles":[{"emoji":"","title":"","score":0,"reason":""},{"emoji":"","title":"","score":0,"reason":""},{"emoji":"","title":"","score":0,"reason":""}]}. Le title est le meilleur profil. Le comment est une phrase spectaculaire faite pour être annoncée dans la salle. Le score indique la force du rapprochement visuel, pas une probabilité scientifique. Prénom déclaré : ${guest}. Table : ${table}.`;
+const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model,input:[{role:'user',content:[{type:'input_text',text:prompt},{type:'input_image',image_url:imageUrl,detail:'high'}]}],max_output_tokens:700})});if(!response.ok)throw new Error(`OpenAI ${response.status}: ${await response.text()}`);const data=await response.json();const text=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x=>x.type==='output_text')?.text||'';const parsed=JSON.parse(text.replace(/^```json\s*|\s*```$/g,'').trim());const profiles=(Array.isArray(parsed.profiles)?parsed.profiles:[]).slice(0,3).map((p,i)=>({emoji:clampText(p.emoji,8,'🎭'),title:clampText(p.title,80,`Profil ${i+1}`),score:Math.max(0,Math.min(100,Number(p.score||0))),reason:clampText(p.reason,220,'Profil fondé sur les éléments visibles.')}));if(!profiles.length)throw new Error('Réponse IA incomplète.');const best=profiles[0];return{emoji:clampText(parsed.emoji,8,best.emoji),title:clampText(parsed.title,80,best.title),comment:clampText(parsed.comment,300,`${guest} révèle un profil inattendu : ${best.title}.`),badge:clampText(parsed.badge,80,best.title),score:Math.max(0,Math.min(100,Number(parsed.score??best.score))),observations:(Array.isArray(parsed.observations)?parsed.observations:[]).slice(0,6).map(x=>clampText(x,120)).filter(Boolean),profiles,source:'openai-vision',createdAt:new Date().toISOString()}}
+async function photoPayload(client,bucket,object,analysis=null){const info=photoInfo(object);return{key:object.Key,size:object.Size,modified:object.LastModified,...info,analysis,url:await getSignedUrl(client,new GetObjectCommand({Bucket:bucket,Key:object.Key}),{expiresIn:600})}}
 
-app.get('/api/health', (_req, res) => {
-  const state = r2ConfigState();
-  res.status(state.configured ? 200 : 503).json({ ok: state.configured, storage: 'cloudflare-r2', storageConfigured: state.configured, aiConfigured: Boolean(readEnv('OPENAI_API_KEY')), missingVariables: state.missing });
-});
-
-app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
-  try {
-    const state = r2ConfigState();
-    if (!state.configured) return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.', missingVariables: state.missing });
-    if (!req.file || !req.file.mimetype.startsWith('image/')) return res.status(400).json({ ok: false, error: 'Photo manquante ou format invalide.' });
-    if (!new Set(['image/jpeg', 'image/png', 'image/webp']).has(req.file.mimetype)) return res.status(415).json({ ok: false, error: 'Format de photo non accepté.' });
-    const { bucket } = state.values, table = cleanSegment(req.body.table, 'Sans-table'), guest = cleanSegment(req.body.guest, 'Invite');
-    const roll = String(Math.max(1, Number.parseInt(req.body.roll || '1', 10) || 1)).padStart(2, '0');
-    const shot = String(Math.max(1, Number.parseInt(req.body.shot || '1', 10) || 1)).padStart(2, '0');
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const extension = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const filename = `${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`, key = `mariage-2026/${table}/${filename}`;
-    await r2Client(state.values).send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype, CacheControl: 'private, max-age=0, no-store', Metadata: { guest, table, roll, shot, uploadedat: new Date().toISOString() } }));
-    res.status(201).json({ ok: true, key, filename });
-  } catch (error) { console.error('R2 upload error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' }); }
-});
-
-app.delete('/api/photo', rateLimit, async (req, res) => {
-  try {
-    const state = r2ConfigState(); if (!state.configured) return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
-    const key = String(req.body?.key || ''); if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Référence de photo invalide.' });
-    await r2Client(state.values).send(new DeleteObjectCommand({ Bucket: state.values.bucket, Key: key })); res.json({ ok: true });
-  } catch (error) { console.error('R2 delete error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible de supprimer la photo du cloud.' }); }
-});
-
-app.get('/api/dashboard', async (_req, res) => {
-  try {
-    const state = r2ConfigState(); if (!state.configured) return res.status(503).json({ ok: false });
-    const client = r2Client(state.values), objects = await listAllPhotos(client, state.values.bucket), tables = new Map(), guests = new Set(), now = Date.now(); let photosLast5Minutes = 0;
-    for (const object of objects) { const info = photoInfo(object); tables.set(info.table, (tables.get(info.table) || 0) + 1); guests.add(info.guest); if (now - new Date(object.LastModified || 0).getTime() <= 300000) photosLast5Minutes += 1; }
-    const analyses = await readJsonObject(client, state.values.bucket, AI_STATE_KEY, { photos: {} });
-    const recent = await Promise.all(objects.slice(0, 36).map(async object => { const info = photoInfo(object); return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, analysis: analyses.photos?.[object.Key] || null, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) }; }));
-    res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, generatedAt: new Date().toISOString(), total: objects.length, guestCount: guests.size, tableCount: tables.size, photosLast5Minutes, aiConfigured: Boolean(readEnv('OPENAI_API_KEY')), lastModified: objects[0]?.LastModified || null, tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })), recent });
-  } catch (error) { console.error('Dashboard error:', error?.message || error); res.status(502).json({ ok: false, error: 'Dashboard indisponible.' }); }
-});
-
-app.post('/api/ai/analyze', rateLimit, async (req, res) => {
-  const key = String(req.body?.key || ''), guest = String(req.body?.guest || 'Invité').slice(0, 60), table = String(req.body?.table || 'Sans table').slice(0, 60);
-  if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Photo invalide.' });
-  try {
-    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false, error: 'Stockage indisponible.' });
-    const result = await (aiWriteQueue = aiWriteQueue.then(async () => {
-      const client = r2Client(config.values), state = await readJsonObject(client, config.values.bucket, AI_STATE_KEY, { photos: {} }); state.photos ||= {};
-      if (state.photos[key]) return state.photos[key];
-      const imageUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: config.values.bucket, Key: key }), { expiresIn: 600 });
-      let analysis;
-      try { analysis = await openAiAnalysis(imageUrl, guest, table); } catch (error) { console.error('AI analysis fallback:', error?.message || error); }
-      analysis ||= fallbackAnalysis(key, guest, table); state.photos[key] = analysis; await writeJsonObject(client, config.values.bucket, AI_STATE_KEY, state); return analysis;
-    }));
-    res.json({ ok: true, configured: Boolean(readEnv('OPENAI_API_KEY')), analysis: result });
-  } catch (error) { aiWriteQueue = Promise.resolve(); res.status(502).json({ ok: false, error: 'Analyse IA indisponible.' }); }
-});
-
-app.post('/api/ai/speech', rateLimit, async (req, res) => {
-  const text = String(req.body?.text || '').trim().slice(0, 500), apiKey = readEnv('OPENAI_API_KEY');
-  if (!text) return res.status(400).json({ ok: false, error: 'Texte manquant.' });
-  if (!apiKey) return res.status(503).json({ ok: false, error: 'Voix IA non configurée.' });
-  try {
-    const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: readEnv('AI_TTS_MODEL') || 'gpt-4o-mini-tts', voice: readEnv('AI_VOICE') || 'onyx', input: text, format: 'mp3' }) });
-    if (!response.ok) throw new Error(`OpenAI speech ${response.status}`);
-    const buffer = Buffer.from(await response.arrayBuffer()); res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' }); res.send(buffer);
-  } catch (error) { console.error('AI speech error:', error?.message || error); res.status(502).json({ ok: false, error: 'Voix IA indisponible.' }); }
-});
-
-app.get('/api/challenges', async (req, res) => {
-  try {
-    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const table = cleanSegment(req.query.table, ''); const state = await readChallengeState(r2Client(config.values), config.values.bucket); const current = table ? normalizeTableData(state.tables?.[table]) : normalizeTableData();
-    res.set('Cache-Control', 'no-store'); res.json({ ok: true, challenges: CHALLENGES, table, completed: current.completed, score: current.score, blocked: current.blocked, leaderboard: leaderboardFromState(state) });
-  } catch (error) { console.error('Challenge read error:', error?.message || error); res.status(502).json({ ok: false, error: 'Défis indisponibles.' }); }
-});
-
-app.post('/api/challenges/complete', rateLimit, async (req, res) => {
-  const table = cleanSegment(req.body?.table, ''), challengeId = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === challengeId);
-  if (!table || !challenge) return res.status(400).json({ ok: false, error: 'Table ou défi invalide.' });
-  try {
-    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const result = await mutateChallengeState(config, state => { const current = normalizeTableData(state.tables[table]); if (current.blocked) throw new Error('Cette table est temporairement bloquée.'); if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score += challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; } return { completed: current.completed, score: current.score, leaderboard: leaderboardFromState(state) }; });
-    res.json({ ok: true, ...result });
-  } catch (error) { challengeWriteQueue = Promise.resolve(); res.status(502).json({ ok: false, error: error?.message || 'Impossible de valider le défi.' }); }
-});
-
-app.get('/api/admin/challenges', requireAdmin, async (_req, res) => {
-  try { const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false }); const state = await readChallengeState(r2Client(config.values), config.values.bucket); const tables = Object.entries(state.tables || {}).map(([name, raw]) => ({ name, ...normalizeTableData(raw) })).sort((a, b) => b.score - a.score); res.set('Cache-Control', 'no-store'); res.json({ ok: true, challenges: CHALLENGES, tables, leaderboard: leaderboardFromState(state) }); }
-  catch { res.status(502).json({ ok: false, error: 'Administration indisponible.' }); }
-});
-
-app.post('/api/admin/challenges/action', requireAdmin, rateLimit, async (req, res) => {
-  const table = cleanSegment(req.body?.table, ''), action = String(req.body?.action || ''); if (!table) return res.status(400).json({ ok: false, error: 'Table invalide.' });
-  try {
-    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const result = await mutateChallengeState(config, state => { const current = normalizeTableData(state.tables[table]); if (action === 'adjust') { const delta = Math.max(-2000, Math.min(2000, Number(req.body?.points || 0))); current.score = Math.max(0, current.score + delta); current.bonus += delta; } else if (action === 'remove-challenge') { const id = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === id); if (!challenge || !current.completed.includes(id)) throw new Error('Défi non trouvé pour cette table.'); current.completed = current.completed.filter(item => item !== id); current.score = Math.max(0, current.score - challenge.points); } else if (action === 'add-challenge') { const id = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === id); if (!challenge) throw new Error('Défi inconnu.'); if (!current.completed.includes(id)) { current.completed.push(id); current.score += challenge.points; } } else if (action === 'toggle-block') current.blocked = !current.blocked; else if (action === 'reset') { state.tables[table] = normalizeTableData(); return { table: state.tables[table], leaderboard: leaderboardFromState(state) }; } else if (action === 'delete-table') { delete state.tables[table]; return { deleted: true, leaderboard: leaderboardFromState(state) }; } else throw new Error('Action inconnue.'); current.updatedAt = new Date().toISOString(); state.tables[table] = current; return { table: current, leaderboard: leaderboardFromState(state) }; });
-    res.json({ ok: true, ...result });
-  } catch (error) { challengeWriteQueue = Promise.resolve(); res.status(400).json({ ok: false, error: error?.message || 'Action impossible.' }); }
-});
-
-app.use(express.static(path.join(__dirname, 'dist')));
-app.use((req, res, next) => { if (req.method !== 'GET' || req.path.startsWith('/api/')) return next(); res.sendFile(path.join(__dirname, 'dist', 'index.html')); });
-app.listen(PORT, '0.0.0.0', () => { const state = r2ConfigState(); console.log(`L’appareil photo de Lau & Gio listening on port ${PORT}`); console.log(`R2 configured: ${state.configured ? 'yes' : 'no'} · AI configured: ${readEnv('OPENAI_API_KEY') ? 'yes' : 'no'}`); });
+app.get('/api/health',(_req,res)=>{const state=r2ConfigState();res.status(state.configured?200:503).json({ok:state.configured,storage:'cloudflare-r2',storageConfigured:state.configured,aiConfigured:Boolean(readEnv('OPENAI_API_KEY')),missingVariables:state.missing})});
+app.post('/api/upload',rateLimit,upload.single('photo'),async(req,res)=>{try{const state=r2ConfigState();if(!state.configured)return res.status(503).json({ok:false,error:'Cloudflare R2 n’est pas configuré.',missingVariables:state.missing});if(!req.file||!new Set(['image/jpeg','image/png','image/webp']).has(req.file.mimetype))return res.status(415).json({ok:false,error:'Photo manquante ou format invalide.'});const{bucket}=state.values,table=cleanSegment(req.body.table,'Sans-table'),guest=cleanSegment(req.body.guest,'Invite'),roll=String(Math.max(1,parseInt(req.body.roll||'1')||1)).padStart(2,'0'),shot=String(Math.max(1,parseInt(req.body.shot||'1')||1)).padStart(2,'0'),timestamp=new Date().toISOString().replace(/[:.]/g,'-'),extension=req.file.mimetype==='image/png'?'png':req.file.mimetype==='image/webp'?'webp':'jpg',filename=`${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`,key=`mariage-2026/${table}/${filename}`;await r2Client(state.values).send(new PutObjectCommand({Bucket:bucket,Key:key,Body:req.file.buffer,ContentType:req.file.mimetype,CacheControl:'private, max-age=0, no-store',Metadata:{guest,table,roll,shot,uploadedat:new Date().toISOString()}}));res.status(201).json({ok:true,key,filename})}catch(error){console.error('R2 upload error:',error);res.status(502).json({ok:false,error:'Impossible d’envoyer la photo vers le cloud.'})}});
+app.delete('/api/photo',rateLimit,async(req,res)=>{try{const state=r2ConfigState();if(!state.configured)return res.status(503).json({ok:false,error:'Cloudflare R2 n’est pas configuré.'});const key=String(req.body?.key||'');if(!key.startsWith('mariage-2026/')||key.includes('..'))return res.status(400).json({ok:false,error:'Référence invalide.'});await r2Client(state.values).send(new DeleteObjectCommand({Bucket:state.values.bucket,Key:key}));res.json({ok:true})}catch(error){console.error('R2 delete error:',error);res.status(502).json({ok:false,error:'Impossible de supprimer la photo.'})}});
+app.get('/api/dashboard',async(_req,res)=>{try{const state=r2ConfigState();if(!state.configured)return res.status(503).json({ok:false});const client=r2Client(state.values),objects=await listAllPhotos(client,state.values.bucket),tables=new Map(),guests=new Set(),now=Date.now();let photosLast5Minutes=0;for(const object of objects){const info=photoInfo(object);tables.set(info.table,(tables.get(info.table)||0)+1);guests.add(info.guest);if(now-new Date(object.LastModified||0).getTime()<=300000)photosLast5Minutes++}const analyses=await readJsonObject(client,state.values.bucket,AI_STATE_KEY,{photos:{}}),recent=await Promise.all(objects.slice(0,80).map(o=>photoPayload(client,state.values.bucket,o,analyses.photos?.[o.Key]||null)));res.set('Cache-Control','no-store');res.json({ok:true,generatedAt:new Date().toISOString(),total:objects.length,guestCount:guests.size,tableCount:tables.size,photosLast5Minutes,aiConfigured:Boolean(readEnv('OPENAI_API_KEY')),lastModified:objects[0]?.LastModified||null,tables:[...tables.entries()].sort((a,b)=>b[1]-a[1]).map(([name,count],index)=>({name,count,rank:index+1})),recent})}catch(error){console.error('Dashboard error:',error);res.status(502).json({ok:false,error:'Dashboard indisponible.'})}});
+app.get('/api/admin/photos',requireAdmin,async(_req,res)=>{try{const state=r2ConfigState();if(!state.configured)return res.status(503).json({ok:false,error:'Stockage indisponible.'});const client=r2Client(state.values),objects=await listAllPhotos(client,state.values.bucket),analyses=await readJsonObject(client,state.values.bucket,AI_STATE_KEY,{photos:{}}),photos=await Promise.all(objects.slice(0,500).map(o=>photoPayload(client,state.values.bucket,o,analyses.photos?.[o.Key]||null)));res.set('Cache-Control','no-store');res.json({ok:true,total:objects.length,photos})}catch(error){console.error('Admin photos error:',error);res.status(502).json({ok:false,error:'Galerie administrateur indisponible.'})}});
+app.post('/api/ai/analyze',rateLimit,async(req,res)=>{const key=String(req.body?.key||''),guest=String(req.body?.guest||'Invité').slice(0,60),table=String(req.body?.table||'Sans table').slice(0,60),force=Boolean(req.body?.force);if(!key.startsWith('mariage-2026/')||key.includes('..'))return res.status(400).json({ok:false,error:'Photo invalide.'});if(!readEnv('OPENAI_API_KEY'))return res.status(503).json({ok:false,error:'OPENAI_API_KEY non configurée : aucun faux résultat ne sera généré.'});try{const config=r2ConfigState();if(!config.configured)return res.status(503).json({ok:false,error:'Stockage indisponible.'});const result=await(aiWriteQueue=aiWriteQueue.then(async()=>{const client=r2Client(config.values),state=await readJsonObject(client,config.values.bucket,AI_STATE_KEY,{photos:{}});state.photos||={};if(state.photos[key]&&!force)return state.photos[key];const imageUrl=await getSignedUrl(client,new GetObjectCommand({Bucket:config.values.bucket,Key:key}),{expiresIn:600}),analysis=await openAiAnalysis(imageUrl,guest,table);state.photos[key]=analysis;await writeJsonObject(client,config.values.bucket,AI_STATE_KEY,state);return analysis}));res.json({ok:true,configured:true,analysis:result})}catch(error){aiWriteQueue=Promise.resolve();console.error('AI analysis error:',error);res.status(502).json({ok:false,error:'Analyse réelle du cliché indisponible.'})}});
+app.post('/api/ai/speech',rateLimit,async(req,res)=>{const text=String(req.body?.text||'').trim().slice(0,500),apiKey=readEnv('OPENAI_API_KEY');if(!text)return res.status(400).json({ok:false,error:'Texte manquant.'});if(!apiKey)return res.status(503).json({ok:false,error:'Voix IA non configurée.'});try{const response=await fetch('https://api.openai.com/v1/audio/speech',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:readEnv('AI_TTS_MODEL')||'gpt-4o-mini-tts',voice:readEnv('AI_VOICE')||'onyx',input:text,response_format:'mp3',instructions:'Voix française chaleureuse, énergique et théâtrale de présentateur de mariage.'})});if(!response.ok)throw new Error(`OpenAI speech ${response.status}`);res.set({'Content-Type':'audio/mpeg','Cache-Control':'no-store'});res.send(Buffer.from(await response.arrayBuffer()))}catch(error){console.error('AI speech error:',error);res.status(502).json({ok:false,error:'Voix IA indisponible.'})}});
+app.get('/api/challenges',async(req,res)=>{try{const config=r2ConfigState();if(!config.configured)return res.status(503).json({ok:false});const table=cleanSegment(req.query.table,''),state=await readChallengeState(r2Client(config.values),config.values.bucket),current=table?normalizeTableData(state.tables?.[table]):normalizeTableData();res.set('Cache-Control','no-store');res.json({ok:true,challenges:CHALLENGES,table,completed:current.completed,score:current.score,blocked:current.blocked,leaderboard:leaderboardFromState(state)})}catch(error){res.status(502).json({ok:false,error:'Défis indisponibles.'})}});
+app.post('/api/challenges/complete',rateLimit,async(req,res)=>{const table=cleanSegment(req.body?.table,''),challengeId=String(req.body?.challengeId||''),challenge=CHALLENGES.find(x=>x.id===challengeId);if(!table||!challenge)return res.status(400).json({ok:false,error:'Table ou défi invalide.'});try{const config=r2ConfigState(),result=await mutateChallengeState(config,state=>{const current=normalizeTableData(state.tables[table]);if(current.blocked)throw new Error('Cette table est temporairement bloquée.');if(!current.completed.includes(challengeId)){current.completed.push(challengeId);current.score+=challenge.points;current.updatedAt=new Date().toISOString();state.tables[table]=current}return{completed:current.completed,score:current.score,leaderboard:leaderboardFromState(state)}});res.json({ok:true,...result})}catch(error){challengeWriteQueue=Promise.resolve();res.status(502).json({ok:false,error:error?.message||'Validation impossible.'})}});
+app.get('/api/admin/challenges',requireAdmin,async(_req,res)=>{try{const config=r2ConfigState(),state=await readChallengeState(r2Client(config.values),config.values.bucket),tables=Object.entries(state.tables||{}).map(([name,raw])=>({name,...normalizeTableData(raw)})).sort((a,b)=>b.score-a.score);res.json({ok:true,challenges:CHALLENGES,tables,leaderboard:leaderboardFromState(state)})}catch{res.status(502).json({ok:false,error:'Administration indisponible.'})}});
+app.post('/api/admin/challenges/action',requireAdmin,rateLimit,async(req,res)=>{const table=cleanSegment(req.body?.table,''),action=String(req.body?.action||'');if(!table)return res.status(400).json({ok:false,error:'Table invalide.'});try{const config=r2ConfigState(),result=await mutateChallengeState(config,state=>{const current=normalizeTableData(state.tables[table]);if(action==='adjust'){const d=Math.max(-2000,Math.min(2000,Number(req.body?.points||0)));current.score=Math.max(0,current.score+d);current.bonus+=d}else if(action==='remove-challenge'){const id=String(req.body?.challengeId||''),c=CHALLENGES.find(x=>x.id===id);if(!c||!current.completed.includes(id))throw new Error('Défi non trouvé.');current.completed=current.completed.filter(x=>x!==id);current.score=Math.max(0,current.score-c.points)}else if(action==='add-challenge'){const id=String(req.body?.challengeId||''),c=CHALLENGES.find(x=>x.id===id);if(!c)throw new Error('Défi inconnu.');if(!current.completed.includes(id)){current.completed.push(id);current.score+=c.points}}else if(action==='toggle-block')current.blocked=!current.blocked;else if(action==='reset'){state.tables[table]=normalizeTableData();return{table:state.tables[table],leaderboard:leaderboardFromState(state)}}else if(action==='delete-table'){delete state.tables[table];return{deleted:true,leaderboard:leaderboardFromState(state)}}else throw new Error('Action inconnue.');current.updatedAt=new Date().toISOString();state.tables[table]=current;return{table:current,leaderboard:leaderboardFromState(state)}});res.json({ok:true,...result})}catch(error){challengeWriteQueue=Promise.resolve();res.status(400).json({ok:false,error:error?.message||'Action impossible.'})}});
+app.use(express.static(path.join(__dirname,'dist')));
+app.use((req,res,next)=>{if(req.method!=='GET'||req.path.startsWith('/api/'))return next();res.sendFile(path.join(__dirname,'dist','index.html'))});
+app.listen(PORT,'0.0.0.0',()=>{const state=r2ConfigState();console.log(`L’appareil photo de Lau & Gio listening on port ${PORT}`);console.log(`R2 configured: ${state.configured?'yes':'no'} · AI configured: ${readEnv('OPENAI_API_KEY')?'yes':'no'}`)});
