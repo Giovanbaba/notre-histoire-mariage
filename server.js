@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const app = express();
@@ -36,7 +36,7 @@ function rateLimit(req, res, next) {
   const now = Date.now(), ip = getClientIp(req), entry = recentUploads.get(ip) || { count: 0, resetAt: now + 60_000 };
   if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 60_000; }
   entry.count += 1; recentUploads.set(ip, entry);
-  if (entry.count > 40) return res.status(429).json({ ok: false, error: 'Trop de photos envoyées en peu de temps.' });
+  if (entry.count > 40) return res.status(429).json({ ok: false, error: 'Trop de requêtes en peu de temps.' });
   next();
 }
 
@@ -64,6 +64,21 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
   } catch (error) {
     console.error('R2 upload error:', { name: error?.name, message: error?.message, code: error?.Code || error?.code, status: error?.$metadata?.httpStatusCode });
     res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' });
+  }
+});
+
+app.delete('/api/photo', rateLimit, async (req, res) => {
+  try {
+    const state = r2ConfigState();
+    if (!state.configured) return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
+    const key = String(req.body?.key || '');
+    if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Référence de photo invalide.' });
+    await r2Client(state.values).send(new DeleteObjectCommand({ Bucket: state.values.bucket, Key: key }));
+    console.log(`R2 delete successful: ${key}`);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('R2 delete error:', error?.message || error);
+    res.status(502).json({ ok: false, error: 'Impossible de supprimer la photo du cloud.' });
   }
 });
 
