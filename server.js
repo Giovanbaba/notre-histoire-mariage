@@ -2,16 +2,18 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
 });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
+const recentUploads = new Map();
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
@@ -27,44 +29,55 @@ function cleanSegment(value, fallback) {
   return cleaned || fallback;
 }
 
-function webdavConfig() {
-  const baseUrl = process.env.NAS_WEBDAV_URL?.replace(/\/+$/, '');
-  const username = process.env.NAS_WEBDAV_USER;
-  const password = process.env.NAS_WEBDAV_PASSWORD;
-  const uploadToken = process.env.UPLOAD_TOKEN;
-  if (!baseUrl || !username || !password || !uploadToken) return null;
-  return { baseUrl, username, password, uploadToken };
+function r2Config() {
+  const endpoint = process.env.R2_ENDPOINT?.replace(/\/+$/, '');
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET_NAME;
+  if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) return null;
+  return { endpoint, accessKeyId, secretAccessKey, bucket };
 }
 
-function authHeader(username, password) {
-  return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+function getClientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
 }
 
-async function ensureCollection(url, headers) {
-  const response = await fetch(url, { method: 'MKCOL', headers });
-  if (![201, 405].includes(response.status)) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`MKCOL ${response.status}: ${body.slice(0, 200)}`);
+function rateLimit(req, res, next) {
+  const now = Date.now();
+  const ip = getClientIp(req);
+  const entry = recentUploads.get(ip) || { count: 0, resetAt: now + 60_000 };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + 60_000;
   }
+  entry.count += 1;
+  recentUploads.set(ip, entry);
+  if (entry.count > 40) {
+    return res.status(429).json({ ok: false, error: 'Trop de photos envoyées en peu de temps.' });
+  }
+  next();
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, storageConfigured: Boolean(webdavConfig()) });
+  res.json({ ok: true, storage: 'cloudflare-r2', storageConfigured: Boolean(r2Config()) });
 });
 
-app.post('/api/upload', upload.single('photo'), async (req, res) => {
+app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
   try {
-    const config = webdavConfig();
+    const config = r2Config();
     if (!config) {
-      return res.status(503).json({ ok: false, error: 'Stockage NAS non configuré.' });
-    }
-
-    if (req.get('x-upload-token') !== config.uploadToken) {
-      return res.status(401).json({ ok: false, error: 'Jeton invalide.' });
+      return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
     }
 
     if (!req.file || !req.file.mimetype.startsWith('image/')) {
       return res.status(400).json({ ok: false, error: 'Photo manquante ou format invalide.' });
+    }
+
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(req.file.mimetype)) {
+      return res.status(415).json({ ok: false, error: 'Format de photo non accepté.' });
     }
 
     const table = cleanSegment(req.body.table, 'Sans-table');
@@ -72,33 +85,38 @@ app.post('/api/upload', upload.single('photo'), async (req, res) => {
     const roll = String(Math.max(1, Number.parseInt(req.body.roll || '1', 10) || 1)).padStart(2, '0');
     const shot = String(Math.max(1, Number.parseInt(req.body.shot || '1', 10) || 1)).padStart(2, '0');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const extension = req.file.mimetype === 'image/png' ? 'png' : 'jpg';
-    const filename = `${table}_${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`;
+    const extension = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const filename = `${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`;
+    const key = `mariage-2026/${table}/${filename}`;
 
-    const headers = { Authorization: authHeader(config.username, config.password) };
-    const tableUrl = `${config.baseUrl}/${encodeURIComponent(table)}`;
-    await ensureCollection(tableUrl, headers);
-
-    const destination = `${tableUrl}/${encodeURIComponent(filename)}`;
-    const response = await fetch(destination, {
-      method: 'PUT',
-      headers: {
-        ...headers,
-        'Content-Type': req.file.mimetype,
-        'Content-Length': String(req.file.size),
+    const client = new S3Client({
+      region: 'auto',
+      endpoint: config.endpoint,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
       },
-      body: req.file.buffer,
     });
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`PUT ${response.status}: ${body.slice(0, 200)}`);
-    }
+    await client.send(new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+      CacheControl: 'private, max-age=0, no-store',
+      Metadata: {
+        guest,
+        table,
+        roll,
+        shot,
+        uploadedAt: new Date().toISOString(),
+      },
+    }));
 
-    res.status(201).json({ ok: true, filename });
+    res.status(201).json({ ok: true, key, filename });
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le NAS.' });
+    console.error('R2 upload error:', error);
+    res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' });
   }
 });
 
