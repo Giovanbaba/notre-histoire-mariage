@@ -103,7 +103,8 @@ app.post('/api/upload', upload.single('photo'), async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
-app.get('*', (_req, res) => {
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
