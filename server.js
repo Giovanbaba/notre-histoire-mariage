@@ -11,6 +11,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const recentUploads = new Map();
+const CHALLENGE_STATE_KEY = 'mariage-2026-system/challenges.json';
+let challengeWriteQueue = Promise.resolve();
+
+const CHALLENGES = [
+  { id: 'maries', emoji: '💍', title: 'Avec les mariés', text: 'Prenez une photo originale avec Laura et Giovanni.', points: 120 },
+  { id: 'grimace', emoji: '😂', title: 'La grimace', text: 'Toute la table fait sa meilleure grimace.', points: 80 },
+  { id: 'danse', emoji: '💃', title: 'Sur la piste', text: 'Réunissez toute votre table sur la piste de danse.', points: 150 },
+  { id: 'coeur', emoji: '❤️', title: 'Un grand cœur', text: 'Formez un cœur collectif avec vos mains.', points: 90 },
+  { id: 'generations', emoji: '👶', title: 'Les générations', text: 'Prenez une photo réunissant un enfant et un aîné.', points: 140 },
+  { id: 'film', emoji: '🎬', title: 'Scène de cinéma', text: 'Recréez une scène de film reconnaissable.', points: 180 },
+  { id: 'accessoire', emoji: '🎩', title: 'Accessoire surprise', text: 'Créez une photo drôle avec un accessoire inattendu.', points: 100 },
+  { id: 'selfie', emoji: '🤳', title: 'Selfie géant', text: 'Faites entrer le plus de personnes possible dans un selfie.', points: 130 },
+  { id: 'bisou', emoji: '😘', title: 'Pluie de bisous', text: 'Toute la table envoie un bisou aux mariés.', points: 70 },
+  { id: 'lettres', emoji: '🔤', title: 'L & G', text: 'Formez les lettres L et G avec les invités.', points: 200 },
+  { id: 'elegance', emoji: '✨', title: 'Photo élégante', text: 'Réalisez la photo la plus chic de votre table.', points: 110 },
+  { id: 'fou-rire', emoji: '🤣', title: 'Fou rire', text: 'Capturez un véritable fou rire collectif.', points: 100 },
+];
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
@@ -40,21 +57,34 @@ function rateLimit(req, res, next) {
   next();
 }
 async function listAllPhotos(client, bucket) {
-  const all = [];
-  let continuationToken;
+  const all = []; let continuationToken;
   do {
     const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'mariage-2026/', MaxKeys: 1000, ContinuationToken: continuationToken }));
-    all.push(...(page.Contents || []));
-    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    all.push(...(page.Contents || [])); continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
-  return all.filter(o => o.Key && o.Size > 0).sort((a, b) => new Date(b.LastModified || 0) - new Date(a.LastModified || 0));
+  return all.filter(o => o.Key && o.Size > 0 && !o.Key.startsWith('mariage-2026-system/')).sort((a, b) => new Date(b.LastModified || 0) - new Date(a.LastModified || 0));
 }
 function photoInfo(object) {
-  const parts = String(object.Key || '').split('/');
-  const table = parts[1] || 'Sans-table';
-  const filename = parts.at(-1) || '';
+  const parts = String(object.Key || '').split('/'), table = parts[1] || 'Sans-table', filename = parts.at(-1) || '';
   const match = filename.match(/^(.*?)_PEL(\d+)_(\d+)_/);
   return { table, guest: match?.[1] || 'Invite', roll: Number(match?.[2] || 1), shot: Number(match?.[3] || 1) };
+}
+async function readChallengeState(client, bucket) {
+  try {
+    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY }));
+    const text = await result.Body.transformToString();
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' ? parsed : { tables: {} };
+  } catch (error) {
+    if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return { tables: {} };
+    throw error;
+  }
+}
+async function writeChallengeState(client, bucket, state) {
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY, Body: JSON.stringify(state), ContentType: 'application/json', CacheControl: 'no-store' }));
+}
+function leaderboardFromState(state) {
+  return Object.entries(state.tables || {}).map(([name, data]) => ({ name, score: Number(data.score || 0), completed: Array.isArray(data.completed) ? data.completed.length : 0, updatedAt: data.updatedAt || null })).sort((a, b) => b.score - a.score || b.completed - a.completed || a.name.localeCompare(b.name)).map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
 app.get('/api/health', (_req, res) => {
@@ -73,15 +103,10 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
     const shot = String(Math.max(1, Number.parseInt(req.body.shot || '1', 10) || 1)).padStart(2, '0');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const extension = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const filename = `${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`;
-    const key = `mariage-2026/${table}/${filename}`;
+    const filename = `${guest}_PEL${roll}_${shot}_${timestamp}.${extension}`, key = `mariage-2026/${table}/${filename}`;
     await r2Client(state.values).send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: req.file.buffer, ContentType: req.file.mimetype, CacheControl: 'private, max-age=0, no-store', Metadata: { guest, table, roll, shot, uploadedat: new Date().toISOString() } }));
-    console.log(`R2 upload successful: ${key} (${req.file.size} bytes)`);
     res.status(201).json({ ok: true, key, filename });
-  } catch (error) {
-    console.error('R2 upload error:', { name: error?.name, message: error?.message, code: error?.Code || error?.code, status: error?.$metadata?.httpStatusCode });
-    res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' });
-  }
+  } catch (error) { console.error('R2 upload error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible d’envoyer la photo vers le cloud.' }); }
 });
 
 app.delete('/api/photo', rateLimit, async (req, res) => {
@@ -91,49 +116,46 @@ app.delete('/api/photo', rateLimit, async (req, res) => {
     const key = String(req.body?.key || '');
     if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Référence de photo invalide.' });
     await r2Client(state.values).send(new DeleteObjectCommand({ Bucket: state.values.bucket, Key: key }));
-    console.log(`R2 delete successful: ${key}`);
     res.json({ ok: true });
-  } catch (error) {
-    console.error('R2 delete error:', error?.message || error);
-    res.status(502).json({ ok: false, error: 'Impossible de supprimer la photo du cloud.' });
-  }
+  } catch (error) { console.error('R2 delete error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible de supprimer la photo du cloud.' }); }
 });
 
 app.get('/api/dashboard', async (_req, res) => {
   try {
-    const state = r2ConfigState();
-    if (!state.configured) return res.status(503).json({ ok: false });
-    const client = r2Client(state.values);
-    const objects = await listAllPhotos(client, state.values.bucket);
-    const tables = new Map(), guests = new Set();
-    const now = Date.now();
-    let photosLast5Minutes = 0;
-    for (const object of objects) {
-      const info = photoInfo(object);
-      tables.set(info.table, (tables.get(info.table) || 0) + 1);
-      guests.add(info.guest);
-      if (now - new Date(object.LastModified || 0).getTime() <= 5 * 60_000) photosLast5Minutes += 1;
-    }
-    const recent = await Promise.all(objects.slice(0, 36).map(async object => {
-      const info = photoInfo(object);
-      return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) };
-    }));
+    const state = r2ConfigState(); if (!state.configured) return res.status(503).json({ ok: false });
+    const client = r2Client(state.values), objects = await listAllPhotos(client, state.values.bucket), tables = new Map(), guests = new Set(), now = Date.now(); let photosLast5Minutes = 0;
+    for (const object of objects) { const info = photoInfo(object); tables.set(info.table, (tables.get(info.table) || 0) + 1); guests.add(info.guest); if (now - new Date(object.LastModified || 0).getTime() <= 300000) photosLast5Minutes += 1; }
+    const recent = await Promise.all(objects.slice(0, 36).map(async object => { const info = photoInfo(object); return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) }; }));
     res.set('Cache-Control', 'no-store');
-    res.json({
-      ok: true,
-      generatedAt: new Date().toISOString(),
-      total: objects.length,
-      guestCount: guests.size,
-      tableCount: tables.size,
-      photosLast5Minutes,
-      lastModified: objects[0]?.LastModified || null,
-      tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })),
-      recent,
-    });
-  } catch (error) {
-    console.error('Dashboard error:', error?.message || error);
-    res.status(502).json({ ok: false, error: 'Dashboard indisponible.' });
-  }
+    res.json({ ok: true, generatedAt: new Date().toISOString(), total: objects.length, guestCount: guests.size, tableCount: tables.size, photosLast5Minutes, lastModified: objects[0]?.LastModified || null, tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })), recent });
+  } catch (error) { console.error('Dashboard error:', error?.message || error); res.status(502).json({ ok: false, error: 'Dashboard indisponible.' }); }
+});
+
+app.get('/api/challenges', async (req, res) => {
+  try {
+    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
+    const table = cleanSegment(req.query.table, '');
+    const state = await readChallengeState(r2Client(config.values), config.values.bucket);
+    const completed = table ? (state.tables?.[table]?.completed || []) : [];
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, challenges: CHALLENGES, table, completed, score: table ? Number(state.tables?.[table]?.score || 0) : 0, leaderboard: leaderboardFromState(state) });
+  } catch (error) { console.error('Challenge read error:', error?.message || error); res.status(502).json({ ok: false, error: 'Défis indisponibles.' }); }
+});
+
+app.post('/api/challenges/complete', rateLimit, async (req, res) => {
+  const table = cleanSegment(req.body?.table, ''), challengeId = String(req.body?.challengeId || '');
+  const challenge = CHALLENGES.find(item => item.id === challengeId);
+  if (!table || !challenge) return res.status(400).json({ ok: false, error: 'Table ou défi invalide.' });
+  try {
+    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
+    const result = await (challengeWriteQueue = challengeWriteQueue.then(async () => {
+      const client = r2Client(config.values), state = await readChallengeState(client, config.values.bucket);
+      state.tables ||= {}; const current = state.tables[table] || { completed: [], score: 0 };
+      if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score = Number(current.score || 0) + challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; await writeChallengeState(client, config.values.bucket, state); }
+      return { completed: current.completed, score: current.score, leaderboard: leaderboardFromState(state) };
+    }));
+    res.json({ ok: true, ...result });
+  } catch (error) { challengeWriteQueue = Promise.resolve(); console.error('Challenge write error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible de valider le défi.' }); }
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
