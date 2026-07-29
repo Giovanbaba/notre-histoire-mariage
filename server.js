@@ -12,7 +12,9 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const recentUploads = new Map();
 const CHALLENGE_STATE_KEY = 'mariage-2026-system/challenges.json';
+const AI_STATE_KEY = 'mariage-2026-system/ai-analyses.json';
 let challengeWriteQueue = Promise.resolve();
+let aiWriteQueue = Promise.resolve();
 
 const CHALLENGES = [
   { id: 'maries', emoji: '💍', title: 'Avec les mariés', text: 'Prenez une photo originale avec Laura et Giovanni.', points: 120 },
@@ -76,38 +78,70 @@ function photoInfo(object) {
   const match = filename.match(/^(.*?)_PEL(\d+)_(\d+)_/);
   return { table, guest: match?.[1] || 'Invite', roll: Number(match?.[2] || 1), shot: Number(match?.[3] || 1) };
 }
-async function readChallengeState(client, bucket) {
+async function readJsonObject(client, bucket, key, fallback) {
   try {
-    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY }));
+    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const parsed = JSON.parse(await result.Body.transformToString());
-    return parsed && typeof parsed === 'object' ? parsed : { tables: {} };
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
   } catch (error) {
-    if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return { tables: {} };
+    if (error?.name === 'NoSuchKey' || error?.$metadata?.httpStatusCode === 404) return fallback;
     throw error;
   }
 }
-async function writeChallengeState(client, bucket, state) {
-  await client.send(new PutObjectCommand({ Bucket: bucket, Key: CHALLENGE_STATE_KEY, Body: JSON.stringify(state), ContentType: 'application/json', CacheControl: 'no-store' }));
+async function writeJsonObject(client, bucket, key, value) {
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: JSON.stringify(value), ContentType: 'application/json', CacheControl: 'no-store' }));
 }
-function normalizeTableData(data = {}) {
-  return { completed: Array.isArray(data.completed) ? data.completed : [], score: Number(data.score || 0), bonus: Number(data.bonus || 0), blocked: Boolean(data.blocked), updatedAt: data.updatedAt || null };
-}
+async function readChallengeState(client, bucket) { return readJsonObject(client, bucket, CHALLENGE_STATE_KEY, { tables: {} }); }
+async function writeChallengeState(client, bucket, state) { return writeJsonObject(client, bucket, CHALLENGE_STATE_KEY, state); }
+function normalizeTableData(data = {}) { return { completed: Array.isArray(data.completed) ? data.completed : [], score: Number(data.score || 0), bonus: Number(data.bonus || 0), blocked: Boolean(data.blocked), updatedAt: data.updatedAt || null }; }
 function leaderboardFromState(state) {
   return Object.entries(state.tables || {}).map(([name, raw]) => { const data = normalizeTableData(raw); return { name, score: data.score, completed: data.completed.length, blocked: data.blocked, updatedAt: data.updatedAt }; }).sort((a, b) => b.score - a.score || b.completed - a.completed || a.name.localeCompare(b.name)).map((row, index) => ({ ...row, rank: index + 1 }));
 }
 async function mutateChallengeState(config, mutation) {
   return (challengeWriteQueue = challengeWriteQueue.then(async () => {
     const client = r2Client(config.values), state = await readChallengeState(client, config.values.bucket);
-    state.tables ||= {};
-    const result = await mutation(state);
-    await writeChallengeState(client, config.values.bucket, state);
-    return result ?? state;
+    state.tables ||= {}; const result = await mutation(state); await writeChallengeState(client, config.values.bucket, state); return result ?? state;
   }));
+}
+function fallbackAnalysis(key, guest, table) {
+  const vibes = [
+    ['🧙', 'Grand sorcier de la soirée', 'On dirait que la magie vient officiellement de changer de table.'],
+    ['⚔️', 'Chef viking en mission', 'Cette photo dégage une énergie de conquête absolument incontrôlable.'],
+    ['🎬', 'Héros de film d’action', 'Quelqu’un vient clairement de décrocher le premier rôle du mariage.'],
+    ['🕶️', 'Boss du cinéma', 'Cette entrée mérite une musique dramatique et un ralenti.'],
+    ['👑', 'Royauté de la piste', 'Le tapis rouge n’était manifestement pas assez long.'],
+    ['🚀', 'Équipage intergalactique', 'Cette table semble prête à sauver la galaxie avant le dessert.']
+  ];
+  let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const [emoji, title, comment] = vibes[h % vibes.length];
+  return { emoji, title, comment: `${guest || 'Cet invité'} de ${table || 'cette table'} : ${comment}`, badge: title, score: 70 + (h % 30), source: 'fallback', createdAt: new Date().toISOString() };
+}
+async function openAiAnalysis(imageUrl, guest, table) {
+  const apiKey = readEnv('OPENAI_API_KEY');
+  if (!apiKey) return null;
+  const model = readEnv('AI_VISION_MODEL') || 'gpt-4.1-mini';
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      input: [{ role: 'user', content: [
+        { type: 'input_text', text: `Analyse cette photo de mariage de façon drôle et bienveillante. N’identifie jamais une personne réelle, une célébrité ou un personnage précis. Décris seulement une vibe ou un archétype visuel inspiré par les vêtements, accessoires, pose et ambiance, par exemple grand sorcier, chef viking, héros de film d’action ou boss des années 1920. Réponds exclusivement en JSON valide avec emoji, title, comment, badge et score (entier de 0 à 100). Le commentaire doit faire une seule phrase en français, adaptée à une annonce dans une salle. Prénom déclaré: ${guest}. Table: ${table}.` },
+        { type: 'input_image', image_url: imageUrl, detail: 'low' }
+      ] }],
+      max_output_tokens: 220
+    })
+  });
+  if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+  const data = await response.json();
+  const text = data.output_text || data.output?.flatMap(x => x.content || []).find(x => x.type === 'output_text')?.text || '';
+  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, '').trim());
+  return { emoji: String(parsed.emoji || '✨').slice(0, 8), title: String(parsed.title || 'Star de la soirée').slice(0, 80), comment: String(parsed.comment || 'Cette photo mérite son moment de gloire.').slice(0, 240), badge: String(parsed.badge || parsed.title || 'Star de la soirée').slice(0, 80), score: Math.max(0, Math.min(100, Number(parsed.score || 75))), source: 'openai', createdAt: new Date().toISOString() };
 }
 
 app.get('/api/health', (_req, res) => {
   const state = r2ConfigState();
-  res.status(state.configured ? 200 : 503).json({ ok: state.configured, storage: 'cloudflare-r2', storageConfigured: state.configured, missingVariables: state.missing });
+  res.status(state.configured ? 200 : 503).json({ ok: state.configured, storage: 'cloudflare-r2', storageConfigured: state.configured, aiConfigured: Boolean(readEnv('OPENAI_API_KEY')), missingVariables: state.missing });
 });
 
 app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
@@ -129,12 +163,9 @@ app.post('/api/upload', rateLimit, upload.single('photo'), async (req, res) => {
 
 app.delete('/api/photo', rateLimit, async (req, res) => {
   try {
-    const state = r2ConfigState();
-    if (!state.configured) return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
-    const key = String(req.body?.key || '');
-    if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Référence de photo invalide.' });
-    await r2Client(state.values).send(new DeleteObjectCommand({ Bucket: state.values.bucket, Key: key }));
-    res.json({ ok: true });
+    const state = r2ConfigState(); if (!state.configured) return res.status(503).json({ ok: false, error: 'Cloudflare R2 n’est pas configuré.' });
+    const key = String(req.body?.key || ''); if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Référence de photo invalide.' });
+    await r2Client(state.values).send(new DeleteObjectCommand({ Bucket: state.values.bucket, Key: key })); res.json({ ok: true });
   } catch (error) { console.error('R2 delete error:', error?.message || error); res.status(502).json({ ok: false, error: 'Impossible de supprimer la photo du cloud.' }); }
 });
 
@@ -143,88 +174,73 @@ app.get('/api/dashboard', async (_req, res) => {
     const state = r2ConfigState(); if (!state.configured) return res.status(503).json({ ok: false });
     const client = r2Client(state.values), objects = await listAllPhotos(client, state.values.bucket), tables = new Map(), guests = new Set(), now = Date.now(); let photosLast5Minutes = 0;
     for (const object of objects) { const info = photoInfo(object); tables.set(info.table, (tables.get(info.table) || 0) + 1); guests.add(info.guest); if (now - new Date(object.LastModified || 0).getTime() <= 300000) photosLast5Minutes += 1; }
-    const recent = await Promise.all(objects.slice(0, 36).map(async object => { const info = photoInfo(object); return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) }; }));
+    const analyses = await readJsonObject(client, state.values.bucket, AI_STATE_KEY, { photos: {} });
+    const recent = await Promise.all(objects.slice(0, 36).map(async object => { const info = photoInfo(object); return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, analysis: analyses.photos?.[object.Key] || null, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) }; }));
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, generatedAt: new Date().toISOString(), total: objects.length, guestCount: guests.size, tableCount: tables.size, photosLast5Minutes, lastModified: objects[0]?.LastModified || null, tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })), recent });
+    res.json({ ok: true, generatedAt: new Date().toISOString(), total: objects.length, guestCount: guests.size, tableCount: tables.size, photosLast5Minutes, aiConfigured: Boolean(readEnv('OPENAI_API_KEY')), lastModified: objects[0]?.LastModified || null, tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })), recent });
   } catch (error) { console.error('Dashboard error:', error?.message || error); res.status(502).json({ ok: false, error: 'Dashboard indisponible.' }); }
+});
+
+app.post('/api/ai/analyze', rateLimit, async (req, res) => {
+  const key = String(req.body?.key || ''), guest = String(req.body?.guest || 'Invité').slice(0, 60), table = String(req.body?.table || 'Sans table').slice(0, 60);
+  if (!key.startsWith('mariage-2026/') || key.includes('..')) return res.status(400).json({ ok: false, error: 'Photo invalide.' });
+  try {
+    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false, error: 'Stockage indisponible.' });
+    const result = await (aiWriteQueue = aiWriteQueue.then(async () => {
+      const client = r2Client(config.values), state = await readJsonObject(client, config.values.bucket, AI_STATE_KEY, { photos: {} }); state.photos ||= {};
+      if (state.photos[key]) return state.photos[key];
+      const imageUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: config.values.bucket, Key: key }), { expiresIn: 600 });
+      let analysis;
+      try { analysis = await openAiAnalysis(imageUrl, guest, table); } catch (error) { console.error('AI analysis fallback:', error?.message || error); }
+      analysis ||= fallbackAnalysis(key, guest, table); state.photos[key] = analysis; await writeJsonObject(client, config.values.bucket, AI_STATE_KEY, state); return analysis;
+    }));
+    res.json({ ok: true, configured: Boolean(readEnv('OPENAI_API_KEY')), analysis: result });
+  } catch (error) { aiWriteQueue = Promise.resolve(); res.status(502).json({ ok: false, error: 'Analyse IA indisponible.' }); }
+});
+
+app.post('/api/ai/speech', rateLimit, async (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 500), apiKey = readEnv('OPENAI_API_KEY');
+  if (!text) return res.status(400).json({ ok: false, error: 'Texte manquant.' });
+  if (!apiKey) return res.status(503).json({ ok: false, error: 'Voix IA non configurée.' });
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: readEnv('AI_TTS_MODEL') || 'gpt-4o-mini-tts', voice: readEnv('AI_VOICE') || 'onyx', input: text, format: 'mp3' }) });
+    if (!response.ok) throw new Error(`OpenAI speech ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer()); res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' }); res.send(buffer);
+  } catch (error) { console.error('AI speech error:', error?.message || error); res.status(502).json({ ok: false, error: 'Voix IA indisponible.' }); }
 });
 
 app.get('/api/challenges', async (req, res) => {
   try {
     const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const table = cleanSegment(req.query.table, '');
-    const state = await readChallengeState(r2Client(config.values), config.values.bucket);
-    const current = table ? normalizeTableData(state.tables?.[table]) : normalizeTableData();
-    res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, challenges: CHALLENGES, table, completed: current.completed, score: current.score, blocked: current.blocked, leaderboard: leaderboardFromState(state) });
+    const table = cleanSegment(req.query.table, ''); const state = await readChallengeState(r2Client(config.values), config.values.bucket); const current = table ? normalizeTableData(state.tables?.[table]) : normalizeTableData();
+    res.set('Cache-Control', 'no-store'); res.json({ ok: true, challenges: CHALLENGES, table, completed: current.completed, score: current.score, blocked: current.blocked, leaderboard: leaderboardFromState(state) });
   } catch (error) { console.error('Challenge read error:', error?.message || error); res.status(502).json({ ok: false, error: 'Défis indisponibles.' }); }
 });
 
 app.post('/api/challenges/complete', rateLimit, async (req, res) => {
-  const table = cleanSegment(req.body?.table, ''), challengeId = String(req.body?.challengeId || '');
-  const challenge = CHALLENGES.find(item => item.id === challengeId);
+  const table = cleanSegment(req.body?.table, ''), challengeId = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === challengeId);
   if (!table || !challenge) return res.status(400).json({ ok: false, error: 'Table ou défi invalide.' });
   try {
     const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const result = await mutateChallengeState(config, state => {
-      const current = normalizeTableData(state.tables[table]);
-      if (current.blocked) throw new Error('Cette table est temporairement bloquée.');
-      if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score += challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; }
-      return { completed: current.completed, score: current.score, leaderboard: leaderboardFromState(state) };
-    });
+    const result = await mutateChallengeState(config, state => { const current = normalizeTableData(state.tables[table]); if (current.blocked) throw new Error('Cette table est temporairement bloquée.'); if (!current.completed.includes(challengeId)) { current.completed.push(challengeId); current.score += challenge.points; current.updatedAt = new Date().toISOString(); state.tables[table] = current; } return { completed: current.completed, score: current.score, leaderboard: leaderboardFromState(state) }; });
     res.json({ ok: true, ...result });
-  } catch (error) { challengeWriteQueue = Promise.resolve(); console.error('Challenge write error:', error?.message || error); res.status(502).json({ ok: false, error: error?.message || 'Impossible de valider le défi.' }); }
+  } catch (error) { challengeWriteQueue = Promise.resolve(); res.status(502).json({ ok: false, error: error?.message || 'Impossible de valider le défi.' }); }
 });
 
 app.get('/api/admin/challenges', requireAdmin, async (_req, res) => {
-  try {
-    const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const state = await readChallengeState(r2Client(config.values), config.values.bucket);
-    const tables = Object.entries(state.tables || {}).map(([name, raw]) => ({ name, ...normalizeTableData(raw) })).sort((a, b) => b.score - a.score);
-    res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, challenges: CHALLENGES, tables, leaderboard: leaderboardFromState(state) });
-  } catch (error) { res.status(502).json({ ok: false, error: 'Administration indisponible.' }); }
+  try { const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false }); const state = await readChallengeState(r2Client(config.values), config.values.bucket); const tables = Object.entries(state.tables || {}).map(([name, raw]) => ({ name, ...normalizeTableData(raw) })).sort((a, b) => b.score - a.score); res.set('Cache-Control', 'no-store'); res.json({ ok: true, challenges: CHALLENGES, tables, leaderboard: leaderboardFromState(state) }); }
+  catch { res.status(502).json({ ok: false, error: 'Administration indisponible.' }); }
 });
 
 app.post('/api/admin/challenges/action', requireAdmin, rateLimit, async (req, res) => {
-  const table = cleanSegment(req.body?.table, '');
-  const action = String(req.body?.action || '');
-  if (!table) return res.status(400).json({ ok: false, error: 'Table invalide.' });
+  const table = cleanSegment(req.body?.table, ''), action = String(req.body?.action || ''); if (!table) return res.status(400).json({ ok: false, error: 'Table invalide.' });
   try {
     const config = r2ConfigState(); if (!config.configured) return res.status(503).json({ ok: false });
-    const result = await mutateChallengeState(config, state => {
-      const current = normalizeTableData(state.tables[table]);
-      if (action === 'adjust') {
-        const delta = Math.max(-2000, Math.min(2000, Number(req.body?.points || 0)));
-        current.score = Math.max(0, current.score + delta);
-        current.bonus += delta;
-      } else if (action === 'remove-challenge') {
-        const id = String(req.body?.challengeId || '');
-        const challenge = CHALLENGES.find(item => item.id === id);
-        if (!challenge || !current.completed.includes(id)) throw new Error('Défi non trouvé pour cette table.');
-        current.completed = current.completed.filter(item => item !== id);
-        current.score = Math.max(0, current.score - challenge.points);
-      } else if (action === 'add-challenge') {
-        const id = String(req.body?.challengeId || '');
-        const challenge = CHALLENGES.find(item => item.id === id);
-        if (!challenge) throw new Error('Défi inconnu.');
-        if (!current.completed.includes(id)) { current.completed.push(id); current.score += challenge.points; }
-      } else if (action === 'toggle-block') {
-        current.blocked = !current.blocked;
-      } else if (action === 'reset') {
-        state.tables[table] = normalizeTableData();
-        return { table: state.tables[table], leaderboard: leaderboardFromState(state) };
-      } else if (action === 'delete-table') {
-        delete state.tables[table];
-        return { deleted: true, leaderboard: leaderboardFromState(state) };
-      } else throw new Error('Action inconnue.');
-      current.updatedAt = new Date().toISOString(); state.tables[table] = current;
-      return { table: current, leaderboard: leaderboardFromState(state) };
-    });
+    const result = await mutateChallengeState(config, state => { const current = normalizeTableData(state.tables[table]); if (action === 'adjust') { const delta = Math.max(-2000, Math.min(2000, Number(req.body?.points || 0))); current.score = Math.max(0, current.score + delta); current.bonus += delta; } else if (action === 'remove-challenge') { const id = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === id); if (!challenge || !current.completed.includes(id)) throw new Error('Défi non trouvé pour cette table.'); current.completed = current.completed.filter(item => item !== id); current.score = Math.max(0, current.score - challenge.points); } else if (action === 'add-challenge') { const id = String(req.body?.challengeId || ''), challenge = CHALLENGES.find(item => item.id === id); if (!challenge) throw new Error('Défi inconnu.'); if (!current.completed.includes(id)) { current.completed.push(id); current.score += challenge.points; } } else if (action === 'toggle-block') current.blocked = !current.blocked; else if (action === 'reset') { state.tables[table] = normalizeTableData(); return { table: state.tables[table], leaderboard: leaderboardFromState(state) }; } else if (action === 'delete-table') { delete state.tables[table]; return { deleted: true, leaderboard: leaderboardFromState(state) }; } else throw new Error('Action inconnue.'); current.updatedAt = new Date().toISOString(); state.tables[table] = current; return { table: current, leaderboard: leaderboardFromState(state) }; });
     res.json({ ok: true, ...result });
   } catch (error) { challengeWriteQueue = Promise.resolve(); res.status(400).json({ ok: false, error: error?.message || 'Action impossible.' }); }
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
 app.use((req, res, next) => { if (req.method !== 'GET' || req.path.startsWith('/api/')) return next(); res.sendFile(path.join(__dirname, 'dist', 'index.html')); });
-app.listen(PORT, '0.0.0.0', () => { const state = r2ConfigState(); console.log(`L’appareil photo de Lau & Gio listening on port ${PORT}`); console.log(`R2 configured: ${state.configured ? 'yes' : 'no'}`); });
+app.listen(PORT, '0.0.0.0', () => { const state = r2ConfigState(); console.log(`L’appareil photo de Lau & Gio listening on port ${PORT}`); console.log(`R2 configured: ${state.configured ? 'yes' : 'no'} · AI configured: ${readEnv('OPENAI_API_KEY') ? 'yes' : 'no'}`); });
