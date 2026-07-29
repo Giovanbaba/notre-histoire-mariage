@@ -39,6 +39,23 @@ function rateLimit(req, res, next) {
   if (entry.count > 40) return res.status(429).json({ ok: false, error: 'Trop de requêtes en peu de temps.' });
   next();
 }
+async function listAllPhotos(client, bucket) {
+  const all = [];
+  let continuationToken;
+  do {
+    const page = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'mariage-2026/', MaxKeys: 1000, ContinuationToken: continuationToken }));
+    all.push(...(page.Contents || []));
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return all.filter(o => o.Key && o.Size > 0).sort((a, b) => new Date(b.LastModified || 0) - new Date(a.LastModified || 0));
+}
+function photoInfo(object) {
+  const parts = String(object.Key || '').split('/');
+  const table = parts[1] || 'Sans-table';
+  const filename = parts.at(-1) || '';
+  const match = filename.match(/^(.*?)_PEL(\d+)_(\d+)_/);
+  return { table, guest: match?.[1] || 'Invite', roll: Number(match?.[2] || 1), shot: Number(match?.[3] || 1) };
+}
 
 app.get('/api/health', (_req, res) => {
   const state = r2ConfigState();
@@ -87,12 +104,32 @@ app.get('/api/dashboard', async (_req, res) => {
     const state = r2ConfigState();
     if (!state.configured) return res.status(503).json({ ok: false });
     const client = r2Client(state.values);
-    const listed = await client.send(new ListObjectsV2Command({ Bucket: state.values.bucket, Prefix: 'mariage-2026/', MaxKeys: 500 }));
-    const objects = (listed.Contents || []).filter(o => o.Key && o.Size > 0).sort((a, b) => new Date(b.LastModified || 0) - new Date(a.LastModified || 0));
-    const tables = {};
-    for (const o of objects) { const table = o.Key.split('/')[1] || 'Sans-table'; tables[table] = (tables[table] || 0) + 1; }
-    const recent = await Promise.all(objects.slice(0, 24).map(async o => ({ key: o.Key, size: o.Size, modified: o.LastModified, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: o.Key }), { expiresIn: 300 }) })));
-    res.json({ ok: true, total: objects.length, tables: Object.entries(tables).sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count})), recent });
+    const objects = await listAllPhotos(client, state.values.bucket);
+    const tables = new Map(), guests = new Set();
+    const now = Date.now();
+    let photosLast5Minutes = 0;
+    for (const object of objects) {
+      const info = photoInfo(object);
+      tables.set(info.table, (tables.get(info.table) || 0) + 1);
+      guests.add(info.guest);
+      if (now - new Date(object.LastModified || 0).getTime() <= 5 * 60_000) photosLast5Minutes += 1;
+    }
+    const recent = await Promise.all(objects.slice(0, 36).map(async object => {
+      const info = photoInfo(object);
+      return { key: object.Key, size: object.Size, modified: object.LastModified, ...info, url: await getSignedUrl(client, new GetObjectCommand({ Bucket: state.values.bucket, Key: object.Key }), { expiresIn: 300 }) };
+    }));
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      total: objects.length,
+      guestCount: guests.size,
+      tableCount: tables.size,
+      photosLast5Minutes,
+      lastModified: objects[0]?.LastModified || null,
+      tables: [...tables.entries()].sort((a, b) => b[1] - a[1]).map(([name, count], index) => ({ name, count, rank: index + 1 })),
+      recent,
+    });
   } catch (error) {
     console.error('Dashboard error:', error?.message || error);
     res.status(502).json({ ok: false, error: 'Dashboard indisponible.' });
