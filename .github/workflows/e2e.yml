@@ -1,0 +1,48 @@
+name: Tests navigation mariage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '15 6 * * *'
+
+jobs:
+  navigation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Attendre le déploiement Railway
+        if: github.event_name == 'push'
+        run: sleep 90
+
+      - name: Tester toutes les URL et navigations
+        run: npm run test:e2e
+
+      - name: Conserver le rapport en cas d’échec
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
