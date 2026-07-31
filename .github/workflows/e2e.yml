@@ -21,7 +21,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Installer les dépendances
         run: npm install
@@ -46,5 +45,3 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
-
-# Relance manuelle des tests — 2026-07-31
