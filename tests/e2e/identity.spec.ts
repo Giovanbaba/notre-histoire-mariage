@@ -17,13 +17,14 @@ test('un invité crée son identité et la conserve jusqu’au puzzle', async ({
 
   await expect(page.getByRole('heading', { name: /bienvenue aux jeux du mariage/i })).toBeVisible();
 
-  // La page déployée peut changer ses classes CSS : on cible les trois champs visibles.
+  // La page déployée peut changer ses classes CSS et le texte du bouton.
+  // On cible les trois champs visibles puis on valide le formulaire avec Entrée.
   const identityInputs = page.locator('input:visible');
   await expect(identityInputs).toHaveCount(3);
   await identityInputs.nth(0).fill(guest.firstName);
   await identityInputs.nth(1).fill(guest.lastName);
   await identityInputs.nth(2).fill(guest.table);
-  await page.getByRole('button', { name: /entrer dans les animations/i }).click();
+  await identityInputs.nth(2).press('Enter');
 
   await expect(page).toHaveURL(/photos\.laura-giova\.be\/accueil\/?$/);
   await expect(page.getByText(`${guest.firstName} ${guest.lastName}`, { exact: false })).toBeVisible();
