@@ -17,9 +17,11 @@ test('un invité crée son identité et la conserve jusqu’au puzzle', async ({
 
   await expect(page.getByRole('heading', { name: /bienvenue aux jeux du mariage/i })).toBeVisible();
 
-  await page.getByLabel(/^prénom$/i).fill(guest.firstName);
-  await page.getByLabel(/^nom$/i).fill(guest.lastName);
-  await page.getByLabel(/^table$/i).fill(guest.table);
+  const identityInputs = page.locator('form.start-form input');
+  await expect(identityInputs).toHaveCount(3);
+  await identityInputs.nth(0).fill(guest.firstName);
+  await identityInputs.nth(1).fill(guest.lastName);
+  await identityInputs.nth(2).fill(guest.table);
   await page.getByRole('button', { name: /entrer dans les animations/i }).click();
 
   await expect(page).toHaveURL(/photos\.laura-giova\.be\/accueil\/?$/);
