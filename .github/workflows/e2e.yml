@@ -45,3 +45,5 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+# Relance forcée après correction du test d’identité — 2026-08-02
