@@ -17,7 +17,8 @@ test('un invité crée son identité et la conserve jusqu’au puzzle', async ({
 
   await expect(page.getByRole('heading', { name: /bienvenue aux jeux du mariage/i })).toBeVisible();
 
-  const identityInputs = page.locator('form.start-form input');
+  // La page déployée peut changer ses classes CSS : on cible les trois champs visibles.
+  const identityInputs = page.locator('input:visible');
   await expect(identityInputs).toHaveCount(3);
   await identityInputs.nth(0).fill(guest.firstName);
   await identityInputs.nth(1).fill(guest.lastName);
