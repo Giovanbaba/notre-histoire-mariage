@@ -92,17 +92,20 @@ test('plusieurs invités conservent des identités totalement séparées', async
 test('changer une identité ne modifie pas les autres invités', async ({ browser }) => {
   const first = await createGuestContext(browser, guests[0]);
   const second = await createGuestContext(browser, guests[1]);
+  const updatedGuest: Guest = { ...guests[0], firstName: 'Alicia' };
 
   try {
     await first.page.goto(`${PHOTOS}/?change=1`, { waitUntil: 'domcontentloaded' });
 
     const inputs = first.page.locator('input:visible');
     await expect(inputs).toHaveCount(3);
-    await inputs.nth(0).fill('Alice-Modifiée');
+    await inputs.nth(0).fill(updatedGuest.firstName);
     await inputs.nth(2).press('Enter');
 
     await expect(first.page).toHaveURL(/photos\.laura-giova\.be\/accueil\/?$/);
-    await expect(first.page.getByText('Alice-Modifiée Test', { exact: false })).toBeVisible();
+    expect(await readIdentity(first.context)).toEqual(updatedGuest);
+    await expect(first.page.getByText('Alicia Test', { exact: false })).toBeVisible();
+    await expect(first.page.getByText('Alice Test', { exact: false })).toHaveCount(0);
 
     await second.page.reload({ waitUntil: 'domcontentloaded' });
     await expect(second.page.getByText('Benoît Test', { exact: false })).toBeVisible();
