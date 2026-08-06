@@ -26,6 +26,18 @@
     <script>
       const ID_COOKIE='lg_identity';
       function sharedIdentity(){const row=document.cookie.split('; ').find(x=>x.startsWith(ID_COOKIE+'='));if(!row)return null;try{return JSON.parse(decodeURIComponent(row.slice(ID_COOKIE.length+1)))}catch{return null}}
+
+      // Lors d'un changement d'identité, supprimer toutes les variantes possibles
+      // du cookie avant que React enregistre la nouvelle valeur. Cela évite qu'un
+      // ancien cookie de domaine masque le nouveau cookie du sous-domaine.
+      document.addEventListener('submit',event=>{
+        const form=event.target;
+        if(!(form instanceof HTMLFormElement)||!form.classList.contains('start-form'))return;
+        if(new URLSearchParams(location.search).get('change')!=='1')return;
+        document.cookie=`${ID_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
+        document.cookie=`${ID_COOKIE}=; Max-Age=0; Path=/; Domain=.laura-giova.be; SameSite=Lax; Secure`;
+      },true);
+
       const identity=sharedIdentity();
       if(!identity){location.replace('/connexion/?next=/')}else{
         localStorage.setItem('lg-guest',`${identity.firstName||''} ${identity.lastName||''}`.trim());
