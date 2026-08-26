@@ -42,7 +42,6 @@ async function uploadToR2(request, env) {
       return json({ ok: false, error: 'Photo ou vidéo manquante, ou format invalide.' }, { status: 415 });
     }
 
-    // Keep uploads intentionally bounded on the public wedding endpoint.
     if (file.size > 100 * 1024 * 1024) {
       return json({ ok: false, error: 'Fichier trop volumineux (100 Mo maximum).' }, { status: 413 });
     }
@@ -78,6 +77,22 @@ async function uploadToR2(request, env) {
       error: 'Impossible d’envoyer le fichier vers Cloudflare R2.',
       detail: error instanceof Error ? error.message : 'Upload error',
     }, { status: 502 });
+  }
+}
+
+async function r2SelfTest(env) {
+  const key = `mariage-2026-system/e2e-${crypto.randomUUID()}.txt`;
+  try {
+    await env.WEDDING_BUCKET.put(key, 'ok', {
+      httpMetadata: { contentType: 'text/plain', cacheControl: 'no-store' },
+    });
+    const object = await env.WEDDING_BUCKET.get(key);
+    const value = object ? await object.text() : '';
+    await env.WEDDING_BUCKET.delete(key);
+    return json({ ok: value === 'ok', r2ReadWriteDelete: value === 'ok' }, { status: value === 'ok' ? 200 : 503 });
+  } catch (error) {
+    try { await env.WEDDING_BUCKET.delete(key); } catch {}
+    return json({ ok: false, r2ReadWriteDelete: false, error: error instanceof Error ? error.message : 'R2 self-test failed' }, { status: 503 });
   }
 }
 
@@ -124,12 +139,14 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/cloudflare-self-test') {
+      return r2SelfTest(env);
+    }
+
     if (url.pathname === '/api/upload' && request.method === 'POST') {
       return uploadToR2(request, env);
     }
 
-    // Hit & Kiss still uses the existing Socket.IO backend during the staged migration.
-    // This keeps the Cloudflare preview playable while no wedding photo upload passes through Railway.
     if (url.pathname.startsWith('/socket.io/')) {
       return proxyLegacyRealtime(request);
     }
@@ -142,7 +159,6 @@ export default {
       }, { status: 501 });
     }
 
-    // /puzzle is a React SPA route and has no physical puzzle/index.html file.
     if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') {
       return serveSpa(request, env);
     }
