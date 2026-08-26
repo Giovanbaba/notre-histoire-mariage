@@ -1,10 +1,20 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 const BASE = process.env.E2E_BASE_URL || 'https://notre-histoire-mariage.giovanni-fragapane.workers.dev';
+const baseUrl = new URL(BASE);
 
 async function installIdentity(context: BrowserContext) {
   const value = encodeURIComponent(JSON.stringify({ firstName: 'Cloud', lastName: 'Test', table: '99' }));
-  await context.addCookies([{ name: 'lg_identity', value, url: BASE, path: '/', secure: true, sameSite: 'Lax' }]);
+  await context.addCookies([
+    {
+      name: 'lg_identity',
+      value,
+      domain: baseUrl.hostname,
+      path: '/',
+      secure: baseUrl.protocol === 'https:',
+      sameSite: 'Lax',
+    },
+  ]);
 }
 
 async function expectHealthyPage(page: Page, path: string) {
@@ -20,9 +30,9 @@ async function expectHealthyPage(page: Page, path: string) {
 test('connexion Cloudflare conserve l’identité', async ({ page, context }) => {
   await context.clearCookies();
   await page.goto(`${BASE}/connexion/?next=/accueil`, { waitUntil: 'domcontentloaded' });
-  await page.getByPlaceholder('Prénom').fill('Cloud');
-  await page.getByPlaceholder('Nom').fill('Test');
-  await page.getByPlaceholder(/table/i).fill('99');
+  await page.getByRole('textbox', { name: 'Prénom' }).fill('Cloud');
+  await page.getByRole('textbox', { name: 'Nom', exact: true }).fill('Test');
+  await page.getByRole('textbox', { name: 'Nom ou numéro de table' }).fill('99');
   await page.getByRole('button', { name: /accéder aux animations/i }).click();
   await expect(page).toHaveURL(new RegExp(`${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/accueil/?$`));
   await expect(page.getByText(/Cloud Test/i)).toBeVisible();
