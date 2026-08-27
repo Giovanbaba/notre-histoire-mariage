@@ -1,9 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "notre-histoire-mariage",
-  "main": "worker/index.ts",
+  "main": "worker/index.js",
   "compatibility_date": "2026-08-26",
-  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -16,24 +15,5 @@
   ],
   "r2_buckets": [
     { "binding": "WEDDING_BUCKET", "bucket_name": "laura-giovanni-mariage" }
-  ],
-  "durable_objects": {
-    "bindings": [
-      { "name": "WEDDING_STATE", "class_name": "WeddingState" },
-      { "name": "HIT_KISS", "class_name": "HitKissRoom" }
-    ]
-  },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["WeddingState", "HitKissRoom"] }
-  ],
-  "vars": {
-    "AI_VISION_MODEL": "gpt-5-mini",
-    "AI_TTS_MODEL": "gpt-4o-mini-tts",
-    "AI_VOICE": "onyx"
-  },
-  "observability": {
-    "enabled": true,
-    "logs": { "head_sampling_rate": 1 },
-    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
-  }
+  ]
 }
