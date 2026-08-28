@@ -5,6 +5,31 @@ export { HitKissRoom, WeddingState };
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
+const NAV_PATHS = new Set(['/appareil/', '/defis/', '/classement/', '/recompenses/', '/partage/']);
+
+const GLOBAL_NAV = `<style>
+  body{padding-bottom:92px!important}
+  .lg-global-nav{position:fixed;z-index:99999;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:5px;max-width:calc(100vw - 20px);padding:7px;border:1px solid #eadbbf;border-radius:18px;background:#fffaf4f2;box-shadow:0 14px 45px #0008;backdrop-filter:blur(14px);overflow-x:auto;scrollbar-width:none}
+  .lg-global-nav::-webkit-scrollbar{display:none}
+  .lg-global-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:74px;padding:7px 9px;border-radius:12px;color:#172542!important;text-decoration:none!important;font:800 10px Inter,system-ui,sans-serif!important;white-space:nowrap}
+  .lg-global-nav a:hover,.lg-global-nav a[aria-current="page"]{background:#efe2c9}
+  .lg-global-nav b{font-size:20px;line-height:1}
+  @media(max-width:650px){.lg-global-nav{left:8px;right:8px;bottom:8px;transform:none;justify-content:flex-start}.lg-global-nav a{min-width:68px;padding:7px 6px}}
+</style><nav class="lg-global-nav" aria-label="Navigation du mariage">
+  <a href="/accueil/"><b>🏠</b><span>Accueil</span></a>
+  <a href="/appareil/"><b>📸</b><span>Photos</span></a>
+  <a href="/defis/"><b>🎯</b><span>Défis</span></a>
+  <a href="/classement/"><b>🏆</b><span>Classement</span></a>
+  <a href="/recompenses/"><b>👑</b><span>Récompenses</span></a>
+  <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
+  <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
+  <a href="/admin-defis/"><b>🔐</b><span>Régie</span></a>
+</nav><script>document.querySelector('.lg-global-nav a[href="'+location.pathname+'"]')?.setAttribute('aria-current','page')</script>`;
+
+function addGlobalNavigation(response: Response, pathname: string) {
+  if (!NAV_PATHS.has(pathname) || !response.headers.get('content-type')?.includes('text/html')) return response;
+  return new HTMLRewriter().on('body', { element(body) { body.append(GLOBAL_NAV, { html: true }); } }).transform(response);
+}
 
 function json(data: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers); headers.set('content-type', 'application/json; charset=utf-8'); headers.set('cache-control', 'no-store');
@@ -118,7 +143,7 @@ export default {
       // html_handling enabled, Cloudflare canonicalises /index.html to /,
       // which previously made the Puzzle card bounce back to the homepage.
       if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') return env.ASSETS.fetch(new Request(new URL('/', url), request));
-      return env.ASSETS.fetch(request);
+      return addGlobalNavigation(await env.ASSETS.fetch(request), url.pathname);
     } catch (error) {
       console.error(JSON.stringify({ message: 'request failed', path: url.pathname, error: error instanceof Error ? error.message : String(error) }));
       return json({ ok: false, error: error instanceof Error ? error.message : 'Erreur interne.' }, { status: 500 });
