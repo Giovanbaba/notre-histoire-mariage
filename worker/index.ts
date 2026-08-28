@@ -23,7 +23,7 @@ const GLOBAL_NAV = `<style>
   <a href="/recompenses/"><b>👑</b><span>Récompenses</span></a>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
-  <a href="/admin-defis/"><b>🔐</b><span>Régie</span></a>
+  <a href="/animateur/"><b>🔐</b><span>Régie</span></a>
 </nav><script>document.querySelector('.lg-global-nav a[href="'+location.pathname+'"]')?.setAttribute('aria-current','page')</script>`;
 
 function addGlobalNavigation(response: Response, pathname: string) {
