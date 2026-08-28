@@ -25,8 +25,8 @@
       "custom_domain": true
     },
     {
-      "pattern": "www.laura-giova.be",
-      "custom_domain": true
+      "pattern": "www.laura-giova.be/*",
+      "zone_name": "laura-giova.be"
     },
     {
       "pattern": "photos.laura-giova.be",
