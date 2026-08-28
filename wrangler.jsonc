@@ -25,6 +25,10 @@
       "custom_domain": true
     },
     {
+      "pattern": "www.laura-giova.be",
+      "custom_domain": true
+    },
+    {
       "pattern": "photos.laura-giova.be",
       "custom_domain": true
     }
