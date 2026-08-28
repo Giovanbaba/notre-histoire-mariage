@@ -114,7 +114,10 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
-      if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+      // Serve the SPA shell without requesting /index.html directly: with
+      // html_handling enabled, Cloudflare canonicalises /index.html to /,
+      // which previously made the Puzzle card bounce back to the homepage.
+      if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') return env.ASSETS.fetch(new Request(new URL('/', url), request));
       return env.ASSETS.fetch(request);
     } catch (error) {
       console.error(JSON.stringify({ message: 'request failed', path: url.pathname, error: error instanceof Error ? error.message : String(error) }));
