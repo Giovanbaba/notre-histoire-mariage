@@ -10,3 +10,10 @@ function renderChallenges(){const tables=challengeData.tables||[],blocked=tables
 async function challengeAction(b){const action=b.dataset.act,table=b.dataset.table;if(action==='reset'&&!confirm(`Réinitialiser ${table} ?`))return;b.disabled=true;try{await api('/api/admin/challenges/action',{method:'POST',body:JSON.stringify({action,table,points:Number(b.dataset.points||0),challengeId:b.dataset.challenge||''})});challengeData=await api('/api/admin/challenges');renderChallenges();toast('✅ Modification enregistrée')}catch(e){toast(e.message)}finally{b.disabled=false}}
 $('connect').onclick=async()=>{pin=$('pin').value.trim();if(!pin)return;try{await authenticate()}catch(e){$('status').textContent='🔴 Accès refusé';toast(e.message)}};$('pin').onkeydown=e=>{if(e.key==='Enter')$('connect').click()};document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{currentTab=t.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));$('photosView').hidden=currentTab!=='photos';$('defisView').hidden=currentTab!=='defis';if(currentTab==='photos')loadPhotos()});$('search').oninput=renderPhotos;$('tableFilter').onchange=renderPhotos;$('refresh').onclick=loadPhotos;$('close').onclick=()=>$('modal').classList.remove('open');$('modal').onclick=e=>{if(e.target===$('modal'))$('modal').classList.remove('open')};if(pin)authenticate().catch(e=>toast(e.message));setInterval(()=>{if(pin&&currentTab==='photos')loadPhotos()},3000);
 </script></body></html>
+<script>
+  // Cloudflare production: hide the unfinished roulette shortcut instead of
+  // sending the animateur to a dead page, and remove the obsolete host label.
+  document.querySelector('a[href="/roue/"]')?.remove();
+  const adminPinInput = document.getElementById('pin');
+  if (adminPinInput) adminPinInput.setAttribute('placeholder', 'Code administrateur Cloudflare');
+</script>
