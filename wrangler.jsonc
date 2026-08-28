@@ -8,7 +8,16 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "run_worker_first": ["/api/*", "/puzzle", "/puzzle/*"]
+    "run_worker_first": [
+      "/api/*",
+      "/puzzle",
+      "/puzzle/*",
+      "/appareil/*",
+      "/defis/*",
+      "/classement/*",
+      "/recompenses/*",
+      "/partage/*"
+    ]
   },
   "routes": [
     {
