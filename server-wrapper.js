@@ -14,7 +14,8 @@ const URLS = {
   puzzle: 'https://photos.laura-giova.be/puzzle',
   challenges: 'https://photos.laura-giova.be/defis/',
   ranking: 'https://photos.laura-giova.be/classement/',
-  rewards: 'https://photos.laura-giova.be/recompenses/'
+  rewards: 'https://photos.laura-giova.be/recompenses/',
+  animateur: 'https://photos.laura-giova.be/animateur/'
 };
 
 async function exists(file) {
@@ -84,6 +85,11 @@ function canonicalizeHtml(html) {
     const urls = JSON.stringify(URLS);
     const audit = `<script data-lg-link-audit>(()=>{const U=${urls};document.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;const t=(a.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();let u='';if(t.includes('hit & kiss')||t.includes('hit and kiss'))u=U.hitKiss;else if(t.includes('notre histoire')||t.includes('puzzle'))u=U.puzzle;else if(t.includes('appareil photo')||t==='photos')u=U.camera;else if(t.includes('défis photo')||t==='défis')u=U.challenges;else if(t.includes('classement')&&location.pathname!='/puzzle')u=U.ranking;else if(t.includes('récompenses'))u=U.rewards;else if(t==='accueil'||t.includes('toutes les animations')||t.includes('retour à l’accueil'))u=U.home;if(u&&a.href!==u){e.preventDefault();location.assign(u)}})})();</script>`;
     next = next.replace('</body>', `${audit}</body>`);
+  }
+
+  if (!next.includes('data-lg-animateur-link')) {
+    const animateurLink = `<script data-lg-animateur-link>document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();if(text.includes('espace animateur')||text==='régie animateur'){e.preventDefault();location.assign('${URLS.animateur}')}})</script>`;
+    next = next.replace('</body>', `${animateurLink}</body>`);
   }
 
   return next;
