@@ -5,10 +5,11 @@ export { HitKissRoom, WeddingState };
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
-const NAV_PATHS = new Set(['/appareil/', '/defis/', '/classement/', '/recompenses/', '/partage/']);
+const NAV_PATHS = new Set(['/accueil', '/appareil', '/defis', '/classement', '/recompenses', '/partage', '/hit-kiss', '/puzzle', '/animateur', '/admin-defis', '/mur', '/dj', '/roue']);
 
 const GLOBAL_NAV = `<style>
   body{padding-bottom:92px!important}
+  body>.global-game-nav,body>.wedding-nav{display:none!important}
   .lg-global-nav{position:fixed;z-index:99999;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:5px;max-width:calc(100vw - 20px);padding:7px;border:1px solid #eadbbf;border-radius:18px;background:#fffaf4f2;box-shadow:0 14px 45px #0008;backdrop-filter:blur(14px);overflow-x:auto;scrollbar-width:none}
   .lg-global-nav::-webkit-scrollbar{display:none}
   .lg-global-nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:74px;padding:7px 9px;border-radius:12px;color:#172542!important;text-decoration:none!important;font:800 10px Inter,system-ui,sans-serif!important;white-space:nowrap}
@@ -23,11 +24,31 @@ const GLOBAL_NAV = `<style>
   <a href="/recompenses/"><b>👑</b><span>Récompenses</span></a>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
-  <a href="/animateur/"><b>🔐</b><span>Régie</span></a>
-</nav><script>document.querySelector('.lg-global-nav a[href="'+location.pathname+'"]')?.setAttribute('aria-current','page')</script>`;
+  <a href="/animateur/"><b>🔐</b><span>ADMIN</span></a>
+</nav><script>
+(() => {
+  const cleanInterface = () => {
+    document.querySelectorAll('a[href*="change=1"]').forEach(link => link.remove());
+    document.querySelectorAll('body *:not(script):not(style)').forEach(element => {
+      if (element.children.length) return;
+      const text = element.textContent || '';
+      if (/régie/i.test(text)) element.textContent = text.replace(/régie/gi, 'ADMIN');
+      if (/^espace animateur$/i.test(text.trim())) element.textContent = 'ADMIN';
+    });
+    const current = location.pathname.replace(/\/+$/, '') || '/';
+    document.querySelectorAll('.lg-global-nav a').forEach(link => {
+      const target = new URL(link.href).pathname.replace(/\/+$/, '') || '/';
+      if (target === current) link.setAttribute('aria-current', 'page');
+    });
+  };
+  cleanInterface();
+  new MutationObserver(cleanInterface).observe(document.body, { childList: true, subtree: true });
+})();
+</script>`;
 
 function addGlobalNavigation(response: Response, pathname: string) {
-  if (!NAV_PATHS.has(pathname) || !response.headers.get('content-type')?.includes('text/html')) return response;
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  if (!NAV_PATHS.has(normalizedPath) || !response.headers.get('content-type')?.includes('text/html')) return response;
   return new HTMLRewriter().on('body', { element(body) { body.append(GLOBAL_NAV, { html: true }); } }).transform(response);
 }
 
@@ -142,7 +163,7 @@ export default {
       // Serve the SPA shell without requesting /index.html directly: with
       // html_handling enabled, Cloudflare canonicalises /index.html to /,
       // which previously made the Puzzle card bounce back to the homepage.
-      if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') return env.ASSETS.fetch(new Request(new URL('/', url), request));
+      if (url.pathname === '/puzzle' || url.pathname === '/puzzle/') return addGlobalNavigation(await env.ASSETS.fetch(new Request(new URL('/', url), request)), url.pathname);
       return addGlobalNavigation(await env.ASSETS.fetch(request), url.pathname);
     } catch (error) {
       console.error(JSON.stringify({ message: 'request failed', path: url.pathname, error: error instanceof Error ? error.message : String(error) }));

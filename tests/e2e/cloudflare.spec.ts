@@ -64,13 +64,14 @@ test.describe('avec identité', () => {
     await expect(page.getByRole('heading', { name: /meilleurs détectives/i })).toBeVisible();
   });
 
-  test('Hit & Kiss charge son interface et son backend Socket.IO répond', async ({ page, request }) => {
+  test('Hit & Kiss charge son interface et son backend Cloudflare répond', async ({ page, request }) => {
     await page.goto(`${BASE}/hit-kiss/`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#app')).toBeVisible();
-    const response = await request.get(`${BASE}/socket.io/?EIO=4&transport=polling&t=e2e`);
-    expect(response.status()).toBeLessThan(400);
-    const body = await response.text();
-    expect(body.length).toBeGreaterThan(0);
+    const response = await request.get(`${BASE}/api/hit-kiss/health`);
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    expect(data.ok).toBe(true);
+    expect(data.realtime).toBe('durable-object-websocket');
   });
 
   test('Cloudflare R2 est connecté en lecture', async ({ request }) => {

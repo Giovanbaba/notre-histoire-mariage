@@ -10,13 +10,20 @@
     "html_handling": "auto-trailing-slash",
     "run_worker_first": [
       "/api/*",
+      "/accueil/*",
       "/puzzle",
       "/puzzle/*",
       "/appareil/*",
       "/defis/*",
       "/classement/*",
       "/recompenses/*",
-      "/partage/*"
+      "/partage/*",
+      "/hit-kiss/*",
+      "/animateur/*",
+      "/admin-defis/*",
+      "/mur/*",
+      "/dj/*",
+      "/roue/*"
     ]
   },
   "routes": [

@@ -27,11 +27,13 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260826.1",
     "@playwright/test": "^1.54.2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.3",
     "typescript": "~5.8.3",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "wrangler": "^4.126.0"
   }
 }
