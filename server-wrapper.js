@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distDir = path.join(__dirname, 'dist');
-const VERSION = '20260819-1425';
+const VERSION = '20260901-2216';
 
 const URLS = {
   home: 'https://www.laura-giova.be/',
@@ -37,22 +37,23 @@ function gameDock() {
   const urls = JSON.stringify(URLS);
   return `<style data-lg-unified-dock>
   .global-game-nav,.wedding-nav{display:none!important}
-  #lg-game-dock{position:fixed;z-index:2147483000;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(60px,1fr));gap:4px;width:min(500px,calc(100vw - 16px));padding:6px;border-radius:22px;background:rgba(255,250,241,.96);border:1px solid rgba(95,73,33,.18);box-shadow:0 14px 42px rgba(0,0,0,.24);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-  #lg-game-dock a{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 4px;border-radius:14px;color:#20263b;text-decoration:none;font-size:11px;font-weight:800;line-height:1.05;text-align:center;-webkit-tap-highlight-color:transparent}
-  #lg-game-dock a .lg-dock-icon{font-size:22px;line-height:1}
+  #lg-game-dock{position:fixed;z-index:2147483000;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(6,minmax(54px,1fr));gap:4px;width:min(640px,calc(100vw - 16px));padding:6px;border-radius:22px;background:rgba(255,250,241,.96);border:1px solid rgba(95,73,33,.18);box-shadow:0 14px 42px rgba(0,0,0,.24);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+  #lg-game-dock a{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 3px;border-radius:14px;color:#20263b;text-decoration:none;font-size:10px;font-weight:800;line-height:1.05;text-align:center;-webkit-tap-highlight-color:transparent}
+  #lg-game-dock a .lg-dock-icon{font-size:21px;line-height:1}
   #lg-game-dock a.active{background:#ead9b1;color:#17233e}
   #lg-game-dock a:focus-visible{outline:2px solid #b9944f;outline-offset:2px}
-  @media(min-width:760px){#lg-game-dock{width:min(440px,calc(100vw - 32px));bottom:16px}#lg-game-dock a{font-size:12px;padding:9px 8px}}
+  @media(min-width:760px){#lg-game-dock{width:min(610px,calc(100vw - 32px));bottom:16px}#lg-game-dock a{font-size:12px;padding:9px 7px}}
   body{padding-bottom:max(86px,calc(78px + env(safe-area-inset-bottom)))!important}
   </style>
-  <nav id="lg-game-dock" aria-label="Navigation des jeux">
+  <nav id="lg-game-dock" aria-label="Navigation du mariage">
     <a data-lg-tab="home" href="${URLS.home}"><span class="lg-dock-icon">🏠</span><span>Accueil</span></a>
     <a data-lg-tab="camera" href="${URLS.camera}"><span class="lg-dock-icon">📸</span><span>Photos</span></a>
-    <a data-lg-tab="ranking" href="${URLS.ranking}"><span class="lg-dock-icon">🏆</span><span>Classement</span></a>
     <a data-lg-tab="hitKiss" href="${URLS.hitKiss}"><span class="lg-dock-icon">🎵</span><span>Hit &amp; Kiss</span></a>
-    <a data-lg-tab="puzzle" href="${URLS.puzzle}"><span class="lg-dock-icon">🧩</span><span>Puzzle</span></a>
+    <a data-lg-tab="puzzle" href="${URLS.puzzle}"><span class="lg-dock-icon">🧩</span><span>Notre histoire</span></a>
+    <a data-lg-tab="ranking" href="${URLS.ranking}"><span class="lg-dock-icon">🏆</span><span>Classement</span></a>
+    <a data-lg-tab="animateur" href="${URLS.animateur}"><span class="lg-dock-icon">🔐</span><span>Admin</span></a>
   </nav>
-  <script data-lg-unified-dock-script>(()=>{const U=${urls};const p=location.pathname.replace(/\\\/+$/,'')||'/';let active='home';if(p.startsWith('/hit-kiss'))active='hitKiss';else if(p==='/puzzle'||p.startsWith('/puzzle/'))active='puzzle';else if(p==='/classement')active='ranking';else if(['/appareil','/defis','/recompenses','/mur','/partage','/photos'].some(x=>p===x||p.startsWith(x+'/')))active='camera';else if(p==='/accueil')active='home';const el=document.querySelector('#lg-game-dock [data-lg-tab="'+active+'"]');if(el){el.classList.add('active');el.setAttribute('aria-current','page')}})();</script>`;
+  <script data-lg-unified-dock-script>(()=>{const p=location.pathname.replace(/\\\/+$/,'')||'/';let active='home';if(p.startsWith('/hit-kiss'))active='hitKiss';else if(p==='/puzzle'||p.startsWith('/puzzle/'))active='puzzle';else if(p==='/classement')active='ranking';else if(p==='/animateur'||p.startsWith('/animateur/'))active='animateur';else if(['/appareil','/defis','/recompenses','/mur','/partage','/photos'].some(x=>p===x||p.startsWith(x+'/')))active='camera';else if(p==='/accueil')active='home';const el=document.querySelector('#lg-game-dock [data-lg-tab="'+active+'"]');if(el){el.classList.add('active');el.setAttribute('aria-current','page')}})();</script>`;
 }
 
 function canonicalizeHtml(html) {
@@ -88,9 +89,10 @@ function canonicalizeHtml(html) {
     next = next.replace('</body>', `${audit}</body>`);
   }
 
-  if (!next.includes('data-lg-animateur-link')) {
-    const animateurLink = `<script data-lg-animateur-link>document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();if(text.includes('espace animateur')||text==='régie animateur'){e.preventDefault();location.assign('${URLS.animateur}')}})</script>`;
-    next = next.replace('</body>', `${animateurLink}</body>`);
+  // La régie générale partage son accès avec Hit & Kiss sur le même appareil.
+  if (!next.includes('data-lg-admin-handoff')) {
+    const adminHandoff = `<script data-lg-admin-handoff>(()=>{const p=location.pathname.replace(/\\\/+$/,'')||'/';if(p==='/animateur'){const form=document.querySelector('#loginForm'),input=document.querySelector('#pin'),app=document.querySelector('#app');let candidate='';const saved=sessionStorage.getItem('lg-admin-pin')||'';if(saved&&input&&!input.value)input.value=saved;form?.addEventListener('submit',()=>{candidate=(input?.value||'').trim();if(!candidate)return;let tries=0;const check=()=>{if(app&&!app.classList.contains('hidden')){sessionStorage.setItem('lg-admin-pin',candidate);const link=[...document.querySelectorAll('a')].find(a=>(a.textContent||'').includes('Gérer Hit & Kiss'));if(link)link.href='/hit-kiss/?admin=1';return}if(++tries<30)setTimeout(check,100)};setTimeout(check,100)});const link=[...document.querySelectorAll('a')].find(a=>(a.textContent||'').includes('Gérer Hit & Kiss'));if(link)link.href='/hit-kiss/?admin=1';}document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();if((text==='régie animateur'||text==='admin')&&!p.startsWith('/hit-kiss')){e.preventDefault();location.assign('${URLS.animateur}')}})})();</script>`;
+    next = next.replace('</body>', `${adminHandoff}</body>`);
   }
 
   return next;
