@@ -156,6 +156,16 @@ export class WeddingState extends DurableObject<AppEnv> {
     ).toArray().map(row => ({ team: row.team, teamKey: row.team_key, attempt: row.attempt, order: JSON.parse(row.order_json) as number[], exact: row.exact, distance: row.distance, score: row.score, elapsed: row.elapsed, createdAt: row.created_at }));
   }
 
+  async resetPuzzleResults() {
+    this.ctx.storage.sql.exec('DELETE FROM puzzle_submissions');
+    return { reset: true };
+  }
+
+  async resetChallengeResults() {
+    this.ctx.storage.sql.exec('DELETE FROM challenge_tables');
+    return { reset: true };
+  }
+
   async getAnalysis(key: string) { return await this.ctx.storage.get<Record<string, unknown>>(`analysis:${key}`) ?? null; }
   async saveAnalysis(key: string, analysis: Record<string, unknown>) { await this.ctx.storage.put(`analysis:${key}`, analysis); return analysis; }
 }
