@@ -19,11 +19,9 @@ const GLOBAL_NAV = `<style>
 </style><nav class="lg-global-nav" aria-label="Navigation du mariage">
   <a href="/accueil/"><b>🏠</b><span>Accueil</span></a>
   <a href="/appareil/"><b>📸</b><span>Photos</span></a>
-  <a href="/defis/"><b>🎯</b><span>Défis</span></a>
-  <a href="/classement/"><b>🏆</b><span>Classement</span></a>
-  <a href="/recompenses/"><b>👑</b><span>Récompenses</span></a>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
+  <a href="/classement/"><b>🏆</b><span>Classement</span></a>
   <a href="/animateur/"><b>🔐</b><span>ADMIN</span></a>
 </nav><script>
 (() => {
