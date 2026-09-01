@@ -37,7 +37,7 @@ function gameDock() {
   const urls = JSON.stringify(URLS);
   return `<style data-lg-unified-dock>
   .global-game-nav,.wedding-nav{display:none!important}
-  #lg-game-dock{position:fixed;z-index:2147483000;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(4,minmax(64px,1fr));gap:4px;width:min(390px,calc(100vw - 16px));padding:6px;border-radius:22px;background:rgba(255,250,241,.96);border:1px solid rgba(95,73,33,.18);box-shadow:0 14px 42px rgba(0,0,0,.24);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+  #lg-game-dock{position:fixed;z-index:2147483000;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(60px,1fr));gap:4px;width:min(500px,calc(100vw - 16px));padding:6px;border-radius:22px;background:rgba(255,250,241,.96);border:1px solid rgba(95,73,33,.18);box-shadow:0 14px 42px rgba(0,0,0,.24);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
   #lg-game-dock a{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 4px;border-radius:14px;color:#20263b;text-decoration:none;font-size:11px;font-weight:800;line-height:1.05;text-align:center;-webkit-tap-highlight-color:transparent}
   #lg-game-dock a .lg-dock-icon{font-size:22px;line-height:1}
   #lg-game-dock a.active{background:#ead9b1;color:#17233e}
@@ -48,10 +48,11 @@ function gameDock() {
   <nav id="lg-game-dock" aria-label="Navigation des jeux">
     <a data-lg-tab="home" href="${URLS.home}"><span class="lg-dock-icon">🏠</span><span>Accueil</span></a>
     <a data-lg-tab="camera" href="${URLS.camera}"><span class="lg-dock-icon">📸</span><span>Photos</span></a>
+    <a data-lg-tab="ranking" href="${URLS.ranking}"><span class="lg-dock-icon">🏆</span><span>Classement</span></a>
     <a data-lg-tab="hitKiss" href="${URLS.hitKiss}"><span class="lg-dock-icon">🎵</span><span>Hit &amp; Kiss</span></a>
     <a data-lg-tab="puzzle" href="${URLS.puzzle}"><span class="lg-dock-icon">🧩</span><span>Puzzle</span></a>
   </nav>
-  <script data-lg-unified-dock-script>(()=>{const U=${urls};const p=location.pathname.replace(/\/+$/,'')||'/';let active='home';if(p.startsWith('/hit-kiss'))active='hitKiss';else if(p==='/puzzle'||p.startsWith('/puzzle/'))active='puzzle';else if(['/appareil','/defis','/classement','/recompenses','/mur','/partage','/photos'].some(x=>p===x||p.startsWith(x+'/')))active='camera';else if(p==='/accueil')active='home';const el=document.querySelector('#lg-game-dock [data-lg-tab="'+active+'"]');if(el){el.classList.add('active');el.setAttribute('aria-current','page')}})();</script>`;
+  <script data-lg-unified-dock-script>(()=>{const U=${urls};const p=location.pathname.replace(/\\\/+$/,'')||'/';let active='home';if(p.startsWith('/hit-kiss'))active='hitKiss';else if(p==='/puzzle'||p.startsWith('/puzzle/'))active='puzzle';else if(p==='/classement')active='ranking';else if(['/appareil','/defis','/recompenses','/mur','/partage','/photos'].some(x=>p===x||p.startsWith(x+'/')))active='camera';else if(p==='/accueil')active='home';const el=document.querySelector('#lg-game-dock [data-lg-tab="'+active+'"]');if(el){el.classList.add('active');el.setAttribute('aria-current','page')}})();</script>`;
 }
 
 function canonicalizeHtml(html) {
@@ -83,12 +84,12 @@ function canonicalizeHtml(html) {
   // Le texte visible du bouton détermine sa destination officielle.
   if (!next.includes('data-lg-link-audit')) {
     const urls = JSON.stringify(URLS);
-    const audit = `<script data-lg-link-audit>(()=>{const U=${urls};document.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;const t=(a.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();let u='';if(t.includes('hit & kiss')||t.includes('hit and kiss'))u=U.hitKiss;else if(t.includes('notre histoire')||t.includes('puzzle'))u=U.puzzle;else if(t.includes('appareil photo')||t==='photos')u=U.camera;else if(t.includes('défis photo')||t==='défis')u=U.challenges;else if(t.includes('classement')&&location.pathname!='/puzzle')u=U.ranking;else if(t.includes('récompenses'))u=U.rewards;else if(t==='accueil'||t.includes('toutes les animations')||t.includes('retour à l’accueil'))u=U.home;if(u&&a.href!==u){e.preventDefault();location.assign(u)}})})();</script>`;
+    const audit = `<script data-lg-link-audit>(()=>{const U=${urls};document.addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;const t=(a.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();let u='';if(t.includes('hit & kiss')||t.includes('hit and kiss'))u=U.hitKiss;else if(t.includes('notre histoire')||t.includes('puzzle'))u=U.puzzle;else if(t.includes('appareil photo')||t==='photos')u=U.camera;else if(t.includes('défis photo')||t==='défis')u=U.challenges;else if(t.includes('classement')&&location.pathname!='/puzzle')u=U.ranking;else if(t.includes('récompenses'))u=U.rewards;else if(t==='accueil'||t.includes('toutes les animations')||t.includes('retour à l’accueil'))u=U.home;if(u&&a.href!==u){e.preventDefault();location.assign(u)}})})();</script>`;
     next = next.replace('</body>', `${audit}</body>`);
   }
 
   if (!next.includes('data-lg-animateur-link')) {
-    const animateurLink = `<script data-lg-animateur-link>document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\s+/g,' ').trim();if(text.includes('espace animateur')||text==='régie animateur'){e.preventDefault();location.assign('${URLS.animateur}')}})</script>`;
+    const animateurLink = `<script data-lg-animateur-link>document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();if(text.includes('espace animateur')||text==='régie animateur'){e.preventDefault();location.assign('${URLS.animateur}')}})</script>`;
     next = next.replace('</body>', `${animateurLink}</body>`);
   }
 
