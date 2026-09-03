@@ -261,11 +261,12 @@ export class HitKissRoom extends DurableObject<AppEnv> {
       } else if (message.type === 'answer') {
         const songId = Number(payload.songId); const song = SONGS.find(item => item.id === songId); const key = attachment.playerKey;
         if (!key || !song || state.phase !== 'active') throw new Error('Le quiz n’est pas ouvert.');
-        state.answers[song.id] ??= {}; if (state.answers[song.id][key]) throw new Error('Réponse déjà validée pour ce morceau.');
+        state.answers[song.id] ??= {};
         const now = Date.now(); if (state.windows[song.id] && now >= state.windows[song.id].closesAt) throw new Error('Ce morceau est verrouillé.');
         if (!state.windows[song.id]) state.windows[song.id] = { startedAt: now, closesAt: now + 300000, startedBy: key };
         const answer: Answer = { key, title: String(payload.title || '').slice(0, 100), artist: String(payload.artist || '').slice(0, 100), year: String(payload.year || '').slice(0, 10), elapsed: Math.max(0, now - state.windows[song.id].startedAt), submittedAt: now };
-        state.answers[song.id][key] = answer; this.scoreAnswer(song, answer, state); result = { ok: true, elapsed: answer.elapsed, closesAt: state.windows[song.id].closesAt };
+        delete state.reviews[`${song.id}:${key}`];
+        state.answers[song.id][key] = answer; this.scoreAnswer(song, answer, state); this.reconcileScores(state); result = { ok: true, elapsed: answer.elapsed, closesAt: state.windows[song.id].closesAt };
       } else if (message.type === 'admin-action') {
         const pinOk = attachment.admin || Boolean(this.env.ADMIN_PIN && await safeEqual(String(payload.pin || ''), this.env.ADMIN_PIN)); if (!pinOk) throw new Error('Code incorrect.');
         const action = String(payload.action || ''); const songId = Number(payload.songId);
