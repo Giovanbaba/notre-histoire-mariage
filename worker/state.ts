@@ -171,9 +171,26 @@ export class WeddingState extends DurableObject<AppEnv> {
 }
 
 export class HitKissRoom extends DurableObject<AppEnv> {
-  private async state(): Promise<QuizState> { return (await this.ctx.storage.get<QuizState>('state')) ?? emptyQuiz(); }
+  private async state(): Promise<QuizState> {
+    const state = (await this.ctx.storage.get<QuizState>('state')) ?? emptyQuiz();
+    this.reconcileScores(state);
+    return state;
+  }
   private async save(state: QuizState): Promise<void> { await this.ctx.storage.put('state', state); }
-  private ranking(state: QuizState) { return Object.values(state.players).map(player => ({ ...player })).sort((a, b) => b.score - a.score || b.perfect - a.perfect || a.totalMs - b.totalMs || a.firstName.localeCompare(b.firstName)); }
+  private reconcileScores(state: QuizState) {
+    for (const player of Object.values(state.players)) { player.score = 0; player.perfect = 0; player.totalMs = 0; }
+    for (const answers of Object.values(state.answers)) for (const answer of Object.values(answers)) {
+      if (!answer.result) continue;
+      answer.result.speed = 0;
+      answer.result.total = answer.result.base;
+      if (!answer.scored || !state.players[answer.key]) continue;
+      const player = state.players[answer.key];
+      player.score += answer.result.base;
+      player.totalMs += answer.elapsed;
+      if (answer.result.base === 4) player.perfect += 1;
+    }
+  }
+  private ranking(state: QuizState) { return Object.values(state.players).map(player => ({ ...player })).sort((a, b) => b.score - a.score || a.totalMs - b.totalMs || b.perfect - a.perfect || a.firstName.localeCompare(b.firstName)); }
 
   private publicState(state: QuizState, forAdmin = false, playerKey: string | null = null) {
     const now = Date.now();
@@ -215,10 +232,9 @@ export class HitKissRoom extends DurableObject<AppEnv> {
     const artist = fuzzyMatch(answer.artist, song.artists, ARTIST_ALIASES[song.id]);
     const year = song.years.includes(normalize(answer.year));
     const base = (title.status === 'correct' ? 1 : 0) + (artist.status === 'correct' ? 1 : 0) + (year ? 2 : 0);
-    // La première réponse ouvre la fenêtre de cinq minutes. Elle reçoit au plus
-    // un point bonus ; tous les autres joueurs conservent l'intégralité des
-    // points de justesse jusqu'à la fermeture de cette fenêtre.
-    const speed = base > 0 && answer.elapsed === 0 ? 1 : 0;
+    // La rapidité ne donne aucun point. Le temps cumulé sert uniquement à
+    // départager les joueurs ayant exactement le même total de points.
+    const speed = 0;
     answer.result = { title, artist, year, base, speed, total: base + speed };
     if (title.status === 'review' || artist.status === 'review') state.reviews[`${song.id}:${answer.key}`] = { songId: song.id, key: answer.key, answer };
     else { const player = state.players[answer.key]; player.score += base + speed; player.totalMs += answer.elapsed; if (base === 4) player.perfect += 1; answer.scored = true; }
