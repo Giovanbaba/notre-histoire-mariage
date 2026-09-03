@@ -179,7 +179,7 @@ export class HitKissRoom extends DurableObject<AppEnv> {
     const now = Date.now();
     const playerAnswers = forAdmin ? Object.fromEntries(Object.keys(state.players).map(key => [key, SONGS.map((song, index) => {
       const answer = state.answers[song.id]?.[key];
-      return answer ? { songId: song.id, number: index + 1, correctTitle: song.title, correctArtists: song.artists, correctYears: song.years, title: answer.title, artist: answer.artist, year: answer.year, points: answer.result?.total ?? null } : null;
+      return answer ? { songId: song.id, number: index + 1, correctTitle: song.title, correctArtists: song.artists, correctYears: song.years, title: answer.title, artist: answer.artist, year: answer.year, points: answer.result?.total ?? null, titleStatus: answer.result?.title.status ?? null, artistStatus: answer.result?.artist.status ?? null, yearCorrect: answer.result?.year ?? null, elapsed: answer.elapsed } : null;
     }).filter(Boolean)])) : undefined;
     return {
       phase: state.phase, playerCount: Object.keys(state.players).length, songCount: SONGS.length,
@@ -215,7 +215,10 @@ export class HitKissRoom extends DurableObject<AppEnv> {
     const artist = fuzzyMatch(answer.artist, song.artists, ARTIST_ALIASES[song.id]);
     const year = song.years.includes(normalize(answer.year));
     const base = (title.status === 'correct' ? 1 : 0) + (artist.status === 'correct' ? 1 : 0) + (year ? 2 : 0);
-    const speed = base > 0 ? (answer.elapsed < 10000 ? 3 : answer.elapsed < 20000 ? 2 : answer.elapsed < 30000 ? 1 : 0) : 0;
+    // La première réponse ouvre la fenêtre de cinq minutes. Elle reçoit au plus
+    // un point bonus ; tous les autres joueurs conservent l'intégralité des
+    // points de justesse jusqu'à la fermeture de cette fenêtre.
+    const speed = base > 0 && answer.elapsed === 0 ? 1 : 0;
     answer.result = { title, artist, year, base, speed, total: base + speed };
     if (title.status === 'review' || artist.status === 'review') state.reviews[`${song.id}:${answer.key}`] = { songId: song.id, key: answer.key, answer };
     else { const player = state.players[answer.key]; player.score += base + speed; player.totalMs += answer.elapsed; if (base === 4) player.perfect += 1; answer.scored = true; }
