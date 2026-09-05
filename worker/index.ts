@@ -33,9 +33,9 @@ const GLOBAL_NAV = `<style>
       if (/régie/i.test(text)) element.textContent = text.replace(/régie/gi, 'ADMIN');
       if (/^espace animateur$/i.test(text.trim())) element.textContent = 'ADMIN';
     });
-    const current = location.pathname.replace(/\/+$/, '') || '/';
+    const current = location.pathname.replace(/\\/+$/, '') || '/';
     document.querySelectorAll('.lg-global-nav a').forEach(link => {
-      const target = new URL(link.href).pathname.replace(/\/+$/, '') || '/';
+      const target = new URL(link.href).pathname.replace(/\\/+$/, '') || '/';
       if (target === current) link.setAttribute('aria-current', 'page');
     });
   };
