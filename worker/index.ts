@@ -47,7 +47,9 @@ const GLOBAL_NAV = `<style>
 function addGlobalNavigation(response: Response, pathname: string) {
   const normalizedPath = pathname.replace(/\/+$/, '') || '/';
   if (!NAV_PATHS.has(normalizedPath) || !response.headers.get('content-type')?.includes('text/html')) return response;
-  return new HTMLRewriter().on('body', { element(body) { body.append(GLOBAL_NAV, { html: true }); } }).transform(response);
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'no-store, no-cache, must-revalidate');
+  return new HTMLRewriter().on('body', { element(body) { body.append(GLOBAL_NAV, { html: true }); } }).transform(new Response(response.body, { status: response.status, statusText: response.statusText, headers }));
 }
 
 function json(data: unknown, init: ResponseInit = {}) {
