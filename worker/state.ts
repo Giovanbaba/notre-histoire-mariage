@@ -266,7 +266,7 @@ export class HitKissRoom extends DurableObject<AppEnv> {
         if (!state.windows[song.id]) state.windows[song.id] = { startedAt: now, closesAt: now + 300000, startedBy: key };
         const answer: Answer = { key, title: String(payload.title || '').slice(0, 100), artist: String(payload.artist || '').slice(0, 100), year: String(payload.year || '').slice(0, 10), elapsed: Math.max(0, now - state.windows[song.id].startedAt), submittedAt: now };
         delete state.reviews[`${song.id}:${key}`];
-        state.answers[song.id][key] = answer; this.scoreAnswer(song, answer, state); this.reconcileScores(state); result = { ok: true, elapsed: answer.elapsed, closesAt: state.windows[song.id].closesAt };
+        state.answers[song.id][key] = answer; this.scoreAnswer(song, answer, state); this.reconcileScores(state); result = { ok: true, elapsed: answer.elapsed, closesAt: state.windows[song.id].closesAt, points: answer.result?.total ?? 0, score: state.players[key]?.score ?? 0 };
       } else if (message.type === 'admin-action') {
         const pinOk = attachment.admin || Boolean(this.env.ADMIN_PIN && await safeEqual(String(payload.pin || ''), this.env.ADMIN_PIN)); if (!pinOk) throw new Error('Code incorrect.');
         const action = String(payload.action || ''); const songId = Number(payload.songId);
