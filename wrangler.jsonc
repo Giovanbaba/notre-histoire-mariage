@@ -14,6 +14,8 @@
       "/puzzle",
       "/puzzle/*",
       "/appareil/*",
+      "/photos-mariage/*",
+      "/videos-mariage/*",
       "/defis/*",
       "/classement/*",
       "/recompenses/*",
