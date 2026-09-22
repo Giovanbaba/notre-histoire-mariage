@@ -5,7 +5,7 @@ export { HitKissRoom, WeddingState };
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
-const NAV_PATHS = new Set(['/accueil', '/appareil', '/defis', '/classement', '/recompenses', '/partage', '/hit-kiss', '/puzzle', '/animateur', '/admin-defis', '/mur', '/dj', '/roue']);
+const NAV_PATHS = new Set(['/accueil', '/appareil', '/photos-mariage', '/videos-mariage', '/defis', '/classement', '/recompenses', '/partage', '/hit-kiss', '/puzzle', '/animateur', '/admin-defis', '/mur', '/dj', '/roue']);
 
 const GLOBAL_NAV = `<style>
   body{padding-bottom:92px!important}
@@ -18,7 +18,9 @@ const GLOBAL_NAV = `<style>
   @media(max-width:650px){.lg-global-nav{left:8px;right:8px;bottom:8px;transform:none;justify-content:flex-start}.lg-global-nav a{min-width:68px;padding:7px 6px}}
 </style><nav class="lg-global-nav" aria-label="Navigation du mariage">
   <a href="/accueil/"><b>🏠</b><span>Accueil</span></a>
-  <a href="/appareil/"><b>📸</b><span>Photos</span></a>
+  <a href="/appareil/"><b>📷</b><span>Appareil</span></a>
+  <a href="/photos-mariage/"><b>🖼️</b><span>Photos mariage</span></a>
+  <a href="/videos-mariage/"><b>🎬</b><span>Vidéos mariage</span></a>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
   <a href="/classement/"><b>🏆</b><span>Classement</span></a>
@@ -96,6 +98,30 @@ async function photoPayload(env: AppEnv, object: R2Object) {
   return { key: object.key, size: object.size, modified: object.uploaded, ...photoInfo(object), analysis, url: `/api/media?key=${encodeURIComponent(object.key)}` };
 }
 
+function mediaKind(key: string) {
+  const lower = key.toLowerCase();
+  if (lower.includes('_video') || /\.(mp4|webm|mov|m4v)$/i.test(lower)) return 'video';
+  return 'photo';
+}
+
+function mediaName(key: string) {
+  return (key.split('/').at(-1) || 'souvenir').replace(/[\r\n"]/g, '_');
+}
+
+async function galleryPayload(bucket: R2Bucket, kind: 'photo' | 'video') {
+  const objects = await listAllPhotos(bucket);
+  return objects.filter(object => mediaKind(object.key) === kind).map(object => ({
+    key: object.key,
+    kind,
+    size: object.size,
+    modified: object.uploaded,
+    ...photoInfo(object),
+    name: mediaName(object.key),
+    url: `/api/media?key=${encodeURIComponent(object.key)}`,
+    downloadUrl: `/api/download?key=${encodeURIComponent(object.key)}`,
+  }));
+}
+
 async function uploadToR2(request: Request, env: AppEnv) {
   const form = await request.formData(); const file = form.get('photo') || form.get('file');
   if (!(file instanceof File) || !ALLOWED_UPLOAD_TYPES.has(file.type)) return json({ ok: false, error: 'Photo ou vidéo manquante, ou format invalide.' }, { status: 415 });
@@ -138,6 +164,8 @@ async function handleApi(request: Request, env: AppEnv, url: URL): Promise<Respo
   if (url.pathname === '/api/cloudflare-self-test') { const key = `mariage-2026-system/e2e-${crypto.randomUUID()}.txt`; try { await env.WEDDING_BUCKET.put(key, 'ok'); const object = await env.WEDDING_BUCKET.get(key); const value = object ? await object.text() : ''; await env.WEDDING_BUCKET.delete(key); return json({ ok: value === 'ok', r2ReadWriteDelete: value === 'ok' }, { status: value === 'ok' ? 200 : 503 }); } catch (error) { await env.WEDDING_BUCKET.delete(key); return json({ ok: false, error: error instanceof Error ? error.message : 'R2 self-test failed' }, { status: 503 }); } }
   if (url.pathname === '/api/upload' && request.method === 'POST') return uploadToR2(request, env);
   if (url.pathname === '/api/media' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=300'); return new Response(object.body, { headers }); }
+  if (url.pathname === '/api/gallery' && request.method === 'GET') { const kind = url.searchParams.get('kind') === 'video' ? 'video' : 'photo'; const items = await galleryPayload(env.WEDDING_BUCKET, kind); return json({ ok: true, kind, total: items.length, items }); }
+  if (url.pathname === '/api/download' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=60'); headers.set('content-disposition', `attachment; filename="${mediaName(key)}"`); return new Response(object.body, { headers }); }
   if (url.pathname === '/api/dashboard' && request.method === 'GET') return json(await dashboard(env));
   if (url.pathname === '/api/admin/verify' && request.method === 'GET') return await isAdmin(request, env) ? json({ ok: true }) : json({ ok: false, error: 'Code administrateur incorrect.' }, { status: 401 });
   if (url.pathname === '/api/photo' && request.method === 'DELETE') { const body = await request.json<Record<string, unknown>>(); if (!await isAdmin(request, env, body)) return json({ ok: false, error: 'Code administrateur incorrect.' }, { status: 401 }); const key = String(body.key || ''); if (!key.startsWith('mariage-2026/') || key.includes('..')) return json({ ok: false, error: 'Référence invalide.' }, { status: 400 }); await env.WEDDING_BUCKET.delete(key); return json({ ok: true }); }
