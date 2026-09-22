@@ -110,16 +110,23 @@ function mediaName(key: string) {
 
 async function galleryPayload(bucket: R2Bucket, kind: 'photo' | 'video') {
   const objects = await listAllPhotos(bucket);
-  return objects.filter(object => mediaKind(object.key) === kind).map(object => ({
-    key: object.key,
-    kind,
-    size: object.size,
-    modified: object.uploaded,
-    ...photoInfo(object),
-    name: mediaName(object.key),
-    url: `/api/media?key=${encodeURIComponent(object.key)}`,
-    downloadUrl: `/api/download?key=${encodeURIComponent(object.key)}`,
-  }));
+  return objects.filter(object => mediaKind(object.key) === kind).map(object => {
+    const info = photoInfo(object);
+    const official = info.table === 'galerie-photos' || info.table === 'galerie-videos';
+    return {
+      key: object.key,
+      kind,
+      size: object.size,
+      modified: object.uploaded,
+      ...info,
+      guest: official ? 'Laura & Giovanni' : info.guest,
+      official,
+      sourceLabel: official ? 'Galerie des mariés' : `Table ${info.table}`,
+      name: mediaName(object.key),
+      url: `/api/media?key=${encodeURIComponent(object.key)}`,
+      downloadUrl: `/api/download?key=${encodeURIComponent(object.key)}`,
+    };
+  });
 }
 
 async function uploadToR2(request: Request, env: AppEnv) {
