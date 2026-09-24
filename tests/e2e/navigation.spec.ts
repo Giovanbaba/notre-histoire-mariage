@@ -69,7 +69,7 @@ test('les cartes de l’accueil pointent vers les bonnes rubriques et animations
   const animations = page.getByRole('link', { name: /^animations/i }).first();
 
   await expect(camera).toHaveAttribute('href', /\/appareil\/?/);
-  await expect(hitKiss).toHaveAttribute('href', /photos\.laura-giova\.be\/hit-kiss\/?/);
+  await expect(hitKiss).toHaveAttribute('href', /\/hit-kiss\/?/);
   await expect(puzzle).toHaveAttribute('href', /\/puzzle\/?/);
   await expect(programme).toHaveAttribute('href', /\/programme\/?/);
   await expect(menu).toHaveAttribute('href', /\/menu\/?/);
