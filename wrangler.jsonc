@@ -11,6 +11,10 @@
     "run_worker_first": [
       "/api/*",
       "/accueil/*",
+      "/programme/*",
+      "/menu/*",
+      "/jeux/*",
+      "/souvenirs/*",
       "/puzzle",
       "/puzzle/*",
       "/appareil/*",

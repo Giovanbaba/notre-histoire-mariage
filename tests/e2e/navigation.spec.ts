@@ -6,6 +6,10 @@ const PHOTOS = 'https://photos.laura-giova.be';
 const ROUTES = [
   { name: 'accueil principal', url: `${MAIN}/` },
   { name: 'accueil animations', url: `${PHOTOS}/accueil` },
+  { name: 'programme', url: `${PHOTOS}/programme/` },
+  { name: 'menu', url: `${PHOTOS}/menu/` },
+  { name: 'animations', url: `${PHOTOS}/jeux/` },
+  { name: 'souvenirs', url: `${PHOTOS}/souvenirs/` },
   { name: 'appareil photo', url: `${PHOTOS}/appareil/` },
   { name: 'Hit & Kiss', url: `${PHOTOS}/hit-kiss/` },
   { name: 'puzzle Notre histoire', url: `${PHOTOS}/puzzle` },
@@ -54,16 +58,22 @@ for (const route of ROUTES) {
   });
 }
 
-test('les trois cartes de l’accueil pointent vers les bonnes animations', async ({ page }) => {
+test('les cartes de l’accueil pointent vers les bonnes rubriques et animations', async ({ page }) => {
   await page.goto(`${PHOTOS}/accueil`, { waitUntil: 'domcontentloaded' });
 
   const camera = page.getByRole('link', { name: /appareil photo/i });
   const hitKiss = page.getByRole('link', { name: /hit & kiss/i });
   const puzzle = page.getByRole('link', { name: /notre histoire/i });
+  const programme = page.getByRole('link', { name: /programme/i }).first();
+  const menu = page.getByRole('link', { name: /menu/i }).first();
+  const animations = page.getByRole('link', { name: /^animations/i }).first();
 
   await expect(camera).toHaveAttribute('href', /\/appareil\/?/);
-  await expect(hitKiss).toHaveAttribute('href', /photos\.laura-giova\.be\/hit-kiss\/?/);
+  await expect(hitKiss).toHaveAttribute('href', /\/hit-kiss\/?/);
   await expect(puzzle).toHaveAttribute('href', /\/puzzle\/?/);
+  await expect(programme).toHaveAttribute('href', /\/programme\/?/);
+  await expect(menu).toHaveAttribute('href', /\/menu\/?/);
+  await expect(animations).toHaveAttribute('href', /\/jeux\/?/);
 });
 
 test('accueil vers puzzle conserve la destination', async ({ page }) => {
