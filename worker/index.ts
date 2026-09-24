@@ -4,6 +4,8 @@ import { HitKissRoom, WeddingState, type AppEnv } from './state';
 export { HitKissRoom, WeddingState };
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_MULTIPART_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_MULTIPART_PART_BYTES = 95 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']);
 const NAV_PATHS = new Set(['/accueil', '/appareil', '/photos-mariage', '/videos-mariage', '/defis', '/classement', '/recompenses', '/partage', '/hit-kiss', '/puzzle', '/animateur', '/admin-defis', '/mur', '/dj', '/roue']);
 
@@ -141,6 +143,65 @@ async function uploadToR2(request: Request, env: AppEnv) {
   return json({ ok: true, key, filename }, { status: 201 });
 }
 
+function validWeddingKey(key: string) {
+  return key.startsWith('mariage-2026/') && !key.includes('..');
+}
+
+async function createMultipartVideo(request: Request, env: AppEnv) {
+  const body = await request.json<Record<string, unknown>>();
+  const type = String(body.type || '');
+  const size = Number(body.size || 0);
+  if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(type)) return json({ ok: false, error: 'Format vidéo invalide.' }, { status: 415 });
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_MULTIPART_VIDEO_BYTES) return json({ ok: false, error: 'La vidéo doit faire moins de 2 Go.' }, { status: 413 });
+  const table = cleanSegment(body.table, 'galerie-videos');
+  const guest = cleanSegment(body.guest, 'Invite');
+  const roll = String(Math.max(1, Number.parseInt(String(body.roll || '1'), 10) || 1)).padStart(2, '0');
+  const shot = String(Math.max(1, Number.parseInt(String(body.shot || '1'), 10) || 1)).padStart(2, '0');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${guest}_VIDEO${roll}_${shot}_${timestamp}.${extensionFor(type)}`;
+  const key = `mariage-2026/${table}/${filename}`;
+  const upload = await env.WEDDING_BUCKET.createMultipartUpload(key, {
+    httpMetadata: { contentType: type, cacheControl: 'private, max-age=0, no-store' },
+    customMetadata: { guest, table, roll, shot, uploadedat: new Date().toISOString(), originalname: String(body.name || '').slice(0, 180) },
+  });
+  return json({ ok: true, key, uploadId: upload.uploadId, filename, chunkSize: 90 * 1024 * 1024 }, { status: 201 });
+}
+
+async function uploadMultipartPart(request: Request, env: AppEnv, url: URL) {
+  const key = url.searchParams.get('key') || '';
+  const uploadId = url.searchParams.get('uploadId') || '';
+  const partNumber = Number.parseInt(url.searchParams.get('partNumber') || '', 10);
+  if (!validWeddingKey(key) || !uploadId || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) return json({ ok: false, error: 'Partie invalide.' }, { status: 400 });
+  const length = Number(request.headers.get('content-length') || 0);
+  if (length > MAX_MULTIPART_PART_BYTES) return json({ ok: false, error: 'Morceau trop volumineux.' }, { status: 413 });
+  if (!request.body) return json({ ok: false, error: 'Morceau manquant.' }, { status: 400 });
+  const upload = env.WEDDING_BUCKET.resumeMultipartUpload(key, uploadId);
+  const part = await upload.uploadPart(partNumber, request.body);
+  return json({ ok: true, partNumber: part.partNumber, etag: part.etag });
+}
+
+async function completeMultipartVideo(request: Request, env: AppEnv) {
+  const body = await request.json<{ key?: string; uploadId?: string; parts?: Array<{ partNumber: number; etag: string }> }>();
+  const key = String(body.key || '');
+  const uploadId = String(body.uploadId || '');
+  const parts = Array.isArray(body.parts) ? body.parts : [];
+  if (!validWeddingKey(key) || !uploadId || !parts.length || parts.length > 10000) return json({ ok: false, error: 'Assemblage invalide.' }, { status: 400 });
+  const normalized = parts.map(part => ({ partNumber: Number(part.partNumber), etag: String(part.etag || '') })).filter(part => Number.isInteger(part.partNumber) && part.partNumber > 0 && part.etag);
+  if (normalized.length !== parts.length) return json({ ok: false, error: 'Liste des morceaux invalide.' }, { status: 400 });
+  const upload = env.WEDDING_BUCKET.resumeMultipartUpload(key, uploadId);
+  const object = await upload.complete(normalized);
+  return json({ ok: true, key: object.key, size: object.size, etag: object.etag }, { status: 201 });
+}
+
+async function abortMultipartVideo(request: Request, env: AppEnv) {
+  const body = await request.json<{ key?: string; uploadId?: string }>();
+  const key = String(body.key || '');
+  const uploadId = String(body.uploadId || '');
+  if (!validWeddingKey(key) || !uploadId) return json({ ok: false, error: 'Envoi invalide.' }, { status: 400 });
+  await env.WEDDING_BUCKET.resumeMultipartUpload(key, uploadId).abort();
+  return json({ ok: true });
+}
+
 async function dashboard(env: AppEnv) {
   const objects = await listAllPhotos(env.WEDDING_BUCKET); const tables = new Map<string, number>(); const guests = new Set<string>(); const now = Date.now(); let photosLast5Minutes = 0;
   for (const object of objects) { const info = photoInfo(object); tables.set(info.table, (tables.get(info.table) || 0) + 1); guests.add(info.guest); if (now - object.uploaded.getTime() <= 300000) photosLast5Minutes += 1; }
@@ -170,6 +231,10 @@ async function handleApi(request: Request, env: AppEnv, url: URL): Promise<Respo
   if (url.pathname === '/api/cloudflare-health' || url.pathname === '/api/health') { const listed = await env.WEDDING_BUCKET.list({ limit: 1 }); return json({ ok: true, platform: 'cloudflare-workers', storage: 'cloudflare-r2', r2Connected: true, aiConfigured: Boolean(env.OPENAI_API_KEY), sampleObjects: listed.objects.length }); }
   if (url.pathname === '/api/cloudflare-self-test') { const key = `mariage-2026-system/e2e-${crypto.randomUUID()}.txt`; try { await env.WEDDING_BUCKET.put(key, 'ok'); const object = await env.WEDDING_BUCKET.get(key); const value = object ? await object.text() : ''; await env.WEDDING_BUCKET.delete(key); return json({ ok: value === 'ok', r2ReadWriteDelete: value === 'ok' }, { status: value === 'ok' ? 200 : 503 }); } catch (error) { await env.WEDDING_BUCKET.delete(key); return json({ ok: false, error: error instanceof Error ? error.message : 'R2 self-test failed' }, { status: 503 }); } }
   if (url.pathname === '/api/upload' && request.method === 'POST') return uploadToR2(request, env);
+  if (url.pathname === '/api/upload/multipart/create' && request.method === 'POST') return createMultipartVideo(request, env);
+  if (url.pathname === '/api/upload/multipart/part' && request.method === 'PUT') return uploadMultipartPart(request, env, url);
+  if (url.pathname === '/api/upload/multipart/complete' && request.method === 'POST') return completeMultipartVideo(request, env);
+  if (url.pathname === '/api/upload/multipart/abort' && request.method === 'POST') return abortMultipartVideo(request, env);
   if (url.pathname === '/api/media' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=300'); return new Response(object.body, { headers }); }
   if (url.pathname === '/api/gallery' && request.method === 'GET') { const kind = url.searchParams.get('kind') === 'video' ? 'video' : 'photo'; const items = await galleryPayload(env.WEDDING_BUCKET, kind); return json({ ok: true, kind, total: items.length, items }); }
   if (url.pathname === '/api/download' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=60'); headers.set('content-disposition', `attachment; filename="${mediaName(key)}"`); return new Response(object.body, { headers }); }
