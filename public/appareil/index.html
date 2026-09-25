@@ -51,5 +51,5 @@ $('grid').onclick=async e=>{const b=e.target.closest('.delete-shot');if(!b)retur
 window.addEventListener('online',processQueue);window.addEventListener('popstate',e=>{if(e.state?.screen==='review'){return}if($('review').style.display==='flex'){discardDraft(true)}const target=e.state?.screen||'welcome';if(target!=='camera')stopCamera();renderScreen(target)});
 (async()=>{const saved=await allShots();shots=await Promise.all(saved.map(async s=>({...s,preview:URL.createObjectURL(s.blob)})));buildStrip();renderGallery();if(shots.length)$('thumb').style.backgroundImage=`url(${shots.at(-1).preview})`;processQueue()})();
 </script>
-</body>
+<script src="/legal.js?v=20260925"></script></body>
 </html>
