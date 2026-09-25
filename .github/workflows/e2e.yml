@@ -84,3 +84,43 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+
+  eclat-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: https://eclat.laura-giova.be
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Attendre la publication
+        if: github.event_name == 'push'
+        run: sleep 45
+
+      - name: Tester Éclat en production
+        run: npx playwright test tests/e2e/eclat-production.spec.ts --project=chromium-desktop
+
+      - name: Conserver les preuves du bot Éclat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-bot-eclat
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30
