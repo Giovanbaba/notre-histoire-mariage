@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { HitKissRoom, WeddingState, type AppEnv } from './state';
+import { handleEclat } from './eclat';
 
 export { HitKissRoom, WeddingState };
 
@@ -260,6 +261,7 @@ export default {
   async fetch(request: Request, env: AppEnv): Promise<Response> {
     const url = new URL(request.url);
     try {
+      if (url.pathname.startsWith('/api/eclat/')) return await handleEclat(request, env, url);
       if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
       // Serve the SPA shell without requesting /index.html directly: with
       // html_handling enabled, Cloudflare canonicalises /index.html to /,
