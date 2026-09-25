@@ -23,13 +23,13 @@ test.describe('Éclat — contrôle production', () => {
 
   test('le formulaire bloque les données incomplètes', async ({ page }) => {
     await page.goto('/#reserver');
-    await page.getByRole('button', { name: /Continuer vers le paiement/i }).click();
+    await page.getByRole('button', { name: /Créer mon espace test/i }).click();
     await expect(page.locator(':invalid')).toHaveCount(4);
     await expect(page).toHaveURL(/#reserver$/);
   });
 
   test('l’API de session multi-mariages est active', async ({ request }) => {
-    const response = await request.get('/api/eclat/session');
+    const response = await request.get('https://photos.laura-giova.be/api/eclat/session');
     expect(response.status()).toBe(401);
     expect(response.headers()['content-type']).toContain('application/json');
     const body = await response.json();
@@ -37,8 +37,8 @@ test.describe('Éclat — contrôle production', () => {
   });
 
   test('une adresse mariage inconnue ne renvoie pas la vitrine Éclat', async ({ page }) => {
-    await page.goto('/mariage/bot-inexistant');
-    await expect(page.getByText(/mariage introuvable|site indisponible/i)).toBeVisible();
+    await page.goto('/mariage/?slug=bot-inexistant');
+    await expect(page.getByText(/mariage introuvable|site indisponible|mariage n’est pas disponible/i)).toBeVisible();
     await expect(page.getByRole('heading', { name: /Votre histoire/i })).toHaveCount(0);
   });
 });
