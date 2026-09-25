@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distDir = path.join(__dirname, 'dist');
-const VERSION = '20260901-2216';
+const VERSION = '20260925-legal';
 
 const URLS = {
   home: 'https://www.laura-giova.be/',
@@ -93,6 +93,10 @@ function canonicalizeHtml(html) {
   if (!next.includes('data-lg-admin-handoff')) {
     const adminHandoff = `<script data-lg-admin-handoff>(()=>{const p=location.pathname.replace(/\\\/+$/,'')||'/';if(p==='/animateur'){const form=document.querySelector('#loginForm'),input=document.querySelector('#pin'),app=document.querySelector('#app');let candidate='';const saved=sessionStorage.getItem('lg-admin-pin')||'';if(saved&&input&&!input.value)input.value=saved;form?.addEventListener('submit',()=>{candidate=(input?.value||'').trim();if(!candidate)return;let tries=0;const check=()=>{if(app&&!app.classList.contains('hidden')){sessionStorage.setItem('lg-admin-pin',candidate);const link=[...document.querySelectorAll('a')].find(a=>(a.textContent||'').includes('Gérer Hit & Kiss'));if(link)link.href='/hit-kiss/?admin=1';return}if(++tries<30)setTimeout(check,100)};setTimeout(check,100)});const link=[...document.querySelectorAll('a')].find(a=>(a.textContent||'').includes('Gérer Hit & Kiss'));if(link)link.href='/hit-kiss/?admin=1';}document.addEventListener('click',e=>{const target=e.target.closest('a,button');if(!target)return;const text=(target.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();if((text==='régie animateur'||text==='admin')&&!p.startsWith('/hit-kiss')){e.preventDefault();location.assign('${URLS.animateur}')}})})();</script>`;
     next = next.replace('</body>', `${adminHandoff}</body>`);
+  }
+
+  if (!next.includes('/legal.js')) {
+    next = next.replace('</body>', '<script src="/legal.js?v='+VERSION+'"></script></body>');
   }
 
   return next;
