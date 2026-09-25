@@ -6,7 +6,7 @@ test.describe('Éclat — contrôle production', () => {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('/');
     await expect(page).toHaveTitle(/Éclat/i);
-    await expect(page.getByRole('heading', { name: /Votre histoire/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Votre histoire/i }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /Créer mon mariage/i })).toBeVisible();
     expect(errors).toEqual([]);
   });
