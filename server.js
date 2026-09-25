@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { setupHitKiss } from './hit-kiss-server.js';
+import { setupMultiTenant } from './multi-tenant.js';
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 1 } });
@@ -73,6 +74,14 @@ app.post('/api/challenges/complete',rateLimit,async(req,res)=>{const table=clean
 app.get('/api/admin/challenges',requireAdmin,async(_req,res)=>{try{const config=r2ConfigState(),state=await readChallengeState(r2Client(config.values),config.values.bucket),tables=Object.entries(state.tables||{}).map(([name,raw])=>({name,...normalizeTableData(raw)})).sort((a,b)=>b.score-a.score);res.json({ok:true,challenges:CHALLENGES,tables,leaderboard:leaderboardFromState(state)})}catch{res.status(502).json({ok:false,error:'Administration indisponible.'})}});
 app.post('/api/admin/challenges/action',requireAdmin,rateLimit,async(req,res)=>{const table=cleanSegment(req.body?.table,''),action=String(req.body?.action||'');if(!table)return res.status(400).json({ok:false,error:'Table invalide.'});try{const config=r2ConfigState(),result=await mutateChallengeState(config,state=>{const current=normalizeTableData(state.tables[table]);if(action==='adjust'){const d=Math.max(-2000,Math.min(2000,Number(req.body?.points||0)));current.score=Math.max(0,current.score+d);current.bonus+=d}else if(action==='remove-challenge'){const id=String(req.body?.challengeId||''),c=CHALLENGES.find(x=>x.id===id);if(!c||!current.completed.includes(id))throw new Error('Défi non trouvé.');current.completed=current.completed.filter(x=>x!==id);current.score=Math.max(0,current.score-c.points)}else if(action==='add-challenge'){const id=String(req.body?.challengeId||''),c=CHALLENGES.find(x=>x.id===id);if(!c)throw new Error('Défi inconnu.');if(!current.completed.includes(id)){current.completed.push(id);current.score+=c.points}}else if(action==='toggle-block')current.blocked=!current.blocked;else if(action==='reset'){state.tables[table]=normalizeTableData();return{table:state.tables[table],leaderboard:leaderboardFromState(state)}}else if(action==='delete-table'){delete state.tables[table];return{deleted:true,leaderboard:leaderboardFromState(state)}}else throw new Error('Action inconnue.');current.updatedAt=new Date().toISOString();state.tables[table]=current;return{table:current,leaderboard:leaderboardFromState(state)}});res.json({ok:true,...result})}catch(error){challengeWriteQueue=Promise.resolve();res.status(400).json({ok:false,error:error?.message||'Action impossible.'})}});
 
+const multiTenantStorage = r2ConfigState();
+if (multiTenantStorage.configured) {
+  setupMultiTenant(app, { client: r2Client(multiTenantStorage.values), bucket: multiTenantStorage.values.bucket, env: process.env });
+} else {
+  console.warn('Éclat multi-mariages désactivé : stockage R2 non configuré.');
+}
+app.get('/mariage/:slug', (_req,res) => res.sendFile(path.join(__dirname,'dist','mariage','index.html')));
+app.get('/eclat', (_req,res) => res.sendFile(path.join(__dirname,'dist','eclat','index.html')));
 app.use(express.static(path.join(__dirname,'dist')));
 app.use((req,res,next)=>{if(req.method!=='GET'||req.path.startsWith('/api/')||req.path.startsWith('/socket.io/'))return next();res.sendFile(path.join(__dirname,'dist','index.html'))});
 const server=http.createServer(app);
