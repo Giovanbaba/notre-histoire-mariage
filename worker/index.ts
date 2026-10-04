@@ -22,8 +22,8 @@ const GLOBAL_NAV = `<style>
 </style><nav class="lg-global-nav" aria-label="Navigation du mariage">
   <a href="/accueil/"><b>🏠</b><span>Accueil</span></a>
   <a href="/appareil/"><b>📷</b><span>Appareil</span></a>
-  <a href="/photos-mariage/"><b>🖼️</b><span>Photos mariage</span></a>
-  <a href="/videos-mariage/"><b>🎬</b><span>Vidéos mariage</span></a>
+  <a href="/photos-mariage/"><b>🖼️</b><span>Photos</span></a>
+  <a href="/videos-mariage/"><b>🎬</b><span>Vidéos</span></a>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
   <a href="/classement/"><b>🏆</b><span>Classement</span></a>
@@ -124,7 +124,7 @@ async function galleryPayload(bucket: R2Bucket, kind: 'photo' | 'video') {
       ...info,
       guest: official ? 'Laura & Giovanni' : info.guest,
       official,
-      sourceLabel: official ? 'Galerie des mariés' : `Table ${info.table}`,
+      sourceLabel: official ? 'Galerie des mariés' : (info.table === 'galerie-invites' ? 'Invité du mariage' : `Table ${info.table}`),
       name: mediaName(object.key),
       url: `/api/media?key=${encodeURIComponent(object.key)}`,
       downloadUrl: `/api/download?key=${encodeURIComponent(object.key)}`,
