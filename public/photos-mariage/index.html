@@ -1,36 +1,279 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#172542">
-<title>Photos du mariage · Laura & Giovanni</title>
+<meta name="theme-color" content="#08142f">
+<title>Photos & vidéos du mariage · Laura & Giovanni</title>
 <style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:28px 18px 130px;background:radial-gradient(circle at top,#3f537b,#172542 52%,#0d1629);font-family:Inter,system-ui,sans-serif;color:#172542}.wrap{width:min(1180px,100%);margin:auto}.hero{text-align:center;color:#fff;margin:8px auto 26px}.hero .icon{font-size:52px}.hero h1{margin:8px 0 6px;font-family:Georgia,serif;font-size:clamp(34px,7vw,58px)}.hero p{margin:0;color:#e5dbc9}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;padding:12px 14px;border-radius:16px;background:#fffaf4}.toolbar b{font-size:15px}.toolbar button{border:0;border-radius:12px;padding:10px 14px;background:#172542;color:white;font-weight:800}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{overflow:hidden;border-radius:20px;background:#fffaf4;box-shadow:0 14px 38px #0005}.media{width:100%;aspect-ratio:1/1;display:block;background:#0d1629;object-fit:cover}.meta{padding:12px}.name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{margin:4px 0 10px;color:#766f64;font-size:12px}.download{display:block;width:100%;padding:11px 12px;border-radius:12px;background:#d8b66f;color:#172542;text-align:center;text-decoration:none;font-weight:900}.empty,.loading{padding:40px 20px;text-align:center;border-radius:20px;background:#fffaf4}.error{color:#8f1f1f}.back{display:inline-block;margin-top:18px;color:white;font-weight:800;text-decoration:none}@media(max-width:560px){body{padding-left:10px;padding-right:10px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.meta{padding:9px}.name{font-size:13px}.download{font-size:12px;padding:9px 7px}}
+*{box-sizing:border-box}html{background:#08142f}body{margin:0;min-height:100vh;padding:0 0 128px;background:radial-gradient(circle at 50% 0,#31466e 0,#132443 44%,#08142f 100%);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172542}
+.wrap{width:min(1180px,calc(100% - 28px));margin:auto}.hero{padding:42px 0 28px;text-align:center;color:#fff}.hero .eyebrow{color:#d8b66f;font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.hero h1{margin:8px 0 10px;font-family:Georgia,serif;font-size:clamp(36px,7vw,64px);line-height:1}.hero p{margin:0 auto;max-width:680px;color:#dbe1eb;line-height:1.55}
+.panel{margin-bottom:22px;padding:20px;border:1px solid #eadbbf;border-radius:24px;background:#fffaf4;box-shadow:0 18px 55px #0005}.upload-zone{text-align:center;padding:28px 18px;border:2px dashed #d8b66f;border-radius:20px;background:#fffdf8}.upload-zone h2{margin:0 0 8px;font-family:Georgia,serif;font-size:28px}.upload-zone p{margin:0 0 18px;color:#756d60;line-height:1.5}.btn{appearance:none;border:0;border-radius:13px;padding:12px 16px;background:#172542;color:#fff;font-weight:900;cursor:pointer}.btn.gold{background:#d8b66f;color:#172542}.btn.secondary{background:#efe5d3;color:#172542}.btn:disabled{opacity:.5;cursor:default}
+.progress{height:9px;margin:16px auto 0;overflow:hidden;border-radius:999px;background:#e7dfd1}.progress span{display:block;width:0;height:100%;background:#d8b66f;transition:width .2s}.status{min-height:24px;margin:10px 0 0;font-size:13px;font-weight:750;color:#566076}.status.error{color:#a12828}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}.filters,.bulk{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.filter.active{background:#d8b66f;color:#172542}.selected-count{font-size:13px;font-weight:800;color:#6b6255}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{position:relative;overflow:hidden;border:1px solid #eadbbf;border-radius:20px;background:#fffaf4;box-shadow:0 12px 35px #0003}.preview{width:100%;aspect-ratio:1/1;display:block;object-fit:cover;background:#10192b}.card video.preview{object-fit:contain}.select-chip{position:absolute;z-index:3;top:10px;left:10px;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:999px;background:#fffdf4ee;box-shadow:0 5px 18px #0004;font-size:12px;font-weight:900;cursor:pointer}.select-chip input{width:18px;height:18px;accent-color:#172542}.meta{padding:12px}.meta strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{margin:4px 0 11px;color:#786f61;font-size:12px}.actions{display:flex;gap:8px}.download{display:block;flex:1;padding:10px 8px;border-radius:11px;background:#d8b66f;color:#172542;text-align:center;text-decoration:none;font-size:13px;font-weight:900}.kind{padding:8px;border-radius:10px;background:#efe5d3;font-size:12px;font-weight:900}.empty,.loading{grid-column:1/-1;padding:44px 20px;text-align:center;border-radius:20px;background:#fffaf4;color:#6c6457}.note{margin:12px 0 0;color:#7d7465;font-size:12px;line-height:1.45}.back{display:inline-block;margin:8px 0 22px;color:#fff;font-weight:800;text-decoration:none}
+@media(max-width:650px){.wrap{width:min(100% - 16px,1180px)}.hero{padding-top:28px}.panel{padding:13px;border-radius:19px}.upload-zone{padding:22px 12px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.meta{padding:9px}.meta strong{font-size:13px}.sub{font-size:11px}.actions{display:block}.kind{display:none}.download{font-size:11px;padding:9px 5px}.select-chip{top:6px;left:6px;padding:6px 7px}.toolbar{align-items:flex-start}.filters,.bulk{width:100%}.bulk .btn{flex:1;padding:10px 7px;font-size:11px}}
 </style>
 </head>
 <body>
 <main class="wrap">
-<header class="hero"><div class="icon">🖼️</div><h1>Photos du mariage</h1><p>Les souvenirs partagés par nos invités · consultation et téléchargement</p></header>
-<div class="toolbar"><b id="count">Chargement…</b><button id="reload" type="button">Actualiser</button></div>
-<section id="grid" class="grid"><div class="loading">Chargement des souvenirs…</div></section>
-<a class="back" href="/accueil/">← Retour à l’accueil</a>
+  <header class="hero">
+    <div class="eyebrow">Laura & Giovanni · 19 septembre 2026</div>
+    <h1>Photos & vidéos</h1>
+    <p>Partagez vos souvenirs du mariage, regardez ceux des autres invités et téléchargez-en plusieurs en une seule fois.</p>
+  </header>
+
+  <section class="panel">
+    <div class="upload-zone">
+      <h2>📤 Ajouter vos souvenirs</h2>
+      <p>Tout le monde peut envoyer plusieurs photos et vidéos en même temps.<br>JPG, PNG, WebP, MP4, WebM ou MOV.</p>
+      <input id="files" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden>
+      <button class="btn gold" id="choose" type="button">Choisir plusieurs photos / vidéos</button>
+      <div class="progress" id="progress" hidden><span id="bar"></span></div>
+      <p id="status" class="status"></p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <div class="filters">
+        <button class="btn filter active" data-filter="all" type="button">Tout</button>
+        <button class="btn secondary filter" data-filter="photo" type="button">🖼️ Photos</button>
+        <button class="btn secondary filter" data-filter="video" type="button">🎬 Vidéos</button>
+      </div>
+      <div class="bulk">
+        <span id="selectedCount" class="selected-count">0 sélectionné</span>
+        <button class="btn secondary" id="selectAll" type="button">Tout sélectionner</button>
+        <button class="btn secondary" id="clearSelection" type="button">Effacer</button>
+        <button class="btn gold" id="downloadSelected" type="button">⬇️ Télécharger la sélection</button>
+      </div>
+    </div>
+    <div id="grid" class="grid"><div class="loading">Chargement des souvenirs…</div></div>
+    <p class="note">Pour les petites sélections, le site crée un seul ZIP. Pour les sélections lourdes ou avec de grosses vidéos, les fichiers sont lancés séparément afin de ne pas saturer le téléphone.</p>
+  </section>
+
+  <a class="back" href="/accueil/">← Retour à l’accueil</a>
 </main>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
-const row=document.cookie.split('; ').find(x=>x.startsWith('lg_identity='));
-if(!row){location.replace('/connexion/?next=/photos-mariage/')}
-const grid=document.querySelector('#grid'),count=document.querySelector('#count');
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const size=n=>n>1048576?(n/1048576).toFixed(1)+' Mo':Math.max(1,Math.round(n/1024))+' Ko';
-async function load(){
- grid.innerHTML='<div class="loading">Chargement des souvenirs…</div>';
- try{
-   const r=await fetch('/api/gallery?kind=photo',{cache:'no-store'}); if(!r.ok)throw new Error('HTTP '+r.status);
-   const d=await r.json(),items=d.items||[]; count.textContent=items.length+' photo${items.length>1?"s":""}';
-   if(!items.length){grid.innerHTML='<div class="empty">Aucun souvenir disponible pour le moment.</div>';return}
-   grid.innerHTML=items.map(item=>`<article class="card"><img class="media" loading="lazy" src="${item.url}" alt="Souvenir du mariage"><div class="meta"><div class="name">${esc(item.guest||'Invité')}</div><div class="sub">${esc(item.sourceLabel||('Table '+(item.table||'—')))} · ${size(item.size||0)}</div><a class="download" href="${item.downloadUrl}">⬇️ Télécharger</a></div></article>`).join('');
- }catch(e){count.textContent='Indisponible';grid.innerHTML='<div class="empty error">Impossible de charger les souvenirs pour le moment.</div>'}
-}
-document.querySelector('#reload').addEventListener('click',load);load();
+(function(){
+  var input=document.getElementById("files");
+  var choose=document.getElementById("choose");
+  var progress=document.getElementById("progress");
+  var bar=document.getElementById("bar");
+  var status=document.getElementById("status");
+  var grid=document.getElementById("grid");
+  var selectedCount=document.getElementById("selectedCount");
+  var currentFilter="all";
+  var allItems=[];
+  var MAX_VIDEO=2*1024*1024*1024;
+  var CHUNK=20*1024*1024;
+  var ZIP_LIMIT=120*1024*1024;
+
+  function esc(value){
+    return String(value==null?"":value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]});
+  }
+  function pause(ms){return new Promise(function(resolve){setTimeout(resolve,ms)})}
+  function size(n){
+    n=Number(n||0);
+    if(n>=1073741824)return (n/1073741824).toFixed(1)+" Go";
+    if(n>=1048576)return (n/1048576).toFixed(1)+" Mo";
+    return Math.max(1,Math.round(n/1024))+" Ko";
+  }
+  function identity(){
+    var row=document.cookie.split("; ").find(function(x){return x.indexOf("lg_identity=")===0});
+    try{
+      if(row){
+        var i=JSON.parse(decodeURIComponent(row.slice("lg_identity=".length)));
+        var name=((i.firstName||"")+" "+(i.lastName||"")).trim();
+        if(name)return {guest:name,table:String(i.table||"galerie-invites")};
+      }
+    }catch(e){}
+    return {guest:"Invité du mariage",table:"galerie-invites"};
+  }
+  function isVideoFile(file){return /^video\//.test(file.type)}
+  function isAllowed(file){return /^(image\/jpeg|image\/png|image\/webp|video\/mp4|video\/webm|video\/quicktime)$/.test(file.type)}
+  async function request(url,options,tries){
+    tries=tries||4;var last;
+    for(var i=0;i<tries;i++){
+      try{
+        var r=await fetch(url,options);
+        if(r.ok)return r;
+        var d=await r.json().catch(function(){return {}});
+        last=new Error(d.error||("Erreur "+r.status));
+      }catch(e){last=e}
+      if(i<tries-1)await pause(700*Math.pow(2,i));
+    }
+    throw last||new Error("Échec réseau");
+  }
+
+  async function uploadPhoto(file,person,index){
+    var form=new FormData();
+    form.append("photo",file,file.name);
+    form.append("guest",person.guest);
+    form.append("table",person.table);
+    form.append("roll","99");
+    form.append("shot",String(index+1));
+    await request("/api/upload",{method:"POST",body:form,cache:"no-store"});
+  }
+
+  async function uploadVideo(file,person,index,fileCount,totalBefore,grandTotal){
+    if(file.size>MAX_VIDEO)throw new Error(file.name+" dépasse 2 Go.");
+    var create=await request("/api/upload/multipart/create",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({name:file.name,type:file.type,size:file.size,guest:person.guest,table:person.table,roll:99,shot:index+1})
+    }).then(function(r){return r.json()});
+    var parts=[];var sent=0;var totalParts=Math.ceil(file.size/CHUNK);
+    for(var start=0,n=1;start<file.size;start+=CHUNK,n++){
+      var blob=file.slice(start,Math.min(start+CHUNK,file.size));
+      status.textContent="Envoi "+(index+1)+"/"+fileCount+" · vidéo "+n+"/"+totalParts+" · "+file.name;
+      var url="/api/upload/multipart/part?key="+encodeURIComponent(create.key)+"&uploadId="+encodeURIComponent(create.uploadId)+"&partNumber="+n;
+      var part=await request(url,{method:"PUT",headers:{"content-type":"application/octet-stream"},body:blob,cache:"no-store"}).then(function(r){return r.json()});
+      parts.push({partNumber:part.partNumber,etag:part.etag});
+      sent+=blob.size;
+      bar.style.width=Math.round(((totalBefore+sent)/grandTotal)*100)+"%";
+    }
+    await request("/api/upload/multipart/complete",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({key:create.key,uploadId:create.uploadId,parts:parts})
+    });
+  }
+
+  choose.onclick=function(){input.click()};
+  input.onchange=async function(){
+    var files=Array.from(input.files||[]);
+    if(!files.length)return;
+    var bad=files.find(function(f){return !isAllowed(f)});
+    if(bad){status.className="status error";status.textContent="Format non accepté : "+bad.name;input.value="";return}
+    var huge=files.find(function(f){return isVideoFile(f)&&f.size>MAX_VIDEO});
+    if(huge){status.className="status error";status.textContent=huge.name+" dépasse 2 Go.";input.value="";return}
+    var person=identity();
+    var grandTotal=files.reduce(function(s,f){return s+f.size},0);
+    var doneBytes=0;
+    progress.hidden=false;bar.style.width="0";choose.disabled=true;status.className="status";
+    try{
+      for(var i=0;i<files.length;i++){
+        var file=files[i];
+        status.textContent="Envoi "+(i+1)+"/"+files.length+" · "+file.name;
+        if(isVideoFile(file))await uploadVideo(file,person,i,files.length,doneBytes,grandTotal);
+        else await uploadPhoto(file,person,i);
+        doneBytes+=file.size;
+        bar.style.width=Math.round((doneBytes/grandTotal)*100)+"%";
+      }
+      status.textContent=files.length+" fichier(s) envoyé(s) avec succès ✅";
+      await load();
+    }catch(e){
+      status.className="status error";
+      status.textContent="Échec de l’envoi : "+(e&&e.message?e.message:"erreur réseau");
+    }finally{
+      choose.disabled=false;input.value="";
+    }
+  };
+
+  async function load(){
+    grid.innerHTML='<div class="loading">Chargement des souvenirs…</div>';
+    try{
+      var responses=await Promise.all([
+        fetch("/api/gallery?kind=photo",{cache:"no-store"}),
+        fetch("/api/gallery?kind=video",{cache:"no-store"})
+      ]);
+      if(!responses[0].ok||!responses[1].ok)throw new Error("Galerie indisponible");
+      var data=await Promise.all(responses.map(function(r){return r.json()}));
+      allItems=(data[0].items||[]).concat(data[1].items||[]);
+      allItems.sort(function(a,b){return new Date(b.modified||0)-new Date(a.modified||0)});
+      render();
+    }catch(e){
+      grid.innerHTML='<div class="empty">Impossible de charger la galerie pour le moment.</div>';
+    }
+  }
+
+  function visibleItems(){
+    return allItems.filter(function(item){return currentFilter==="all"||item.kind===currentFilter});
+  }
+  function cardFor(item,index){
+    var article=document.createElement("article");article.className="card";article.dataset.key=item.key;
+    var label=document.createElement("label");label.className="select-chip";
+    var cb=document.createElement("input");cb.type="checkbox";cb.className="media-check";cb.dataset.key=item.key;
+    cb.addEventListener("change",updateSelected);
+    label.appendChild(cb);label.appendChild(document.createTextNode("Sélectionner"));article.appendChild(label);
+    if(item.kind==="video"){
+      var video=document.createElement("video");video.className="preview";video.controls=true;video.preload="metadata";video.playsInline=true;video.src=item.url;article.appendChild(video);
+    }else{
+      var img=document.createElement("img");img.className="preview";img.loading="lazy";img.src=item.url;img.alt="Souvenir du mariage";article.appendChild(img);
+    }
+    var meta=document.createElement("div");meta.className="meta";
+    var strong=document.createElement("strong");strong.textContent=item.guest||"Invité";meta.appendChild(strong);
+    var sub=document.createElement("div");sub.className="sub";sub.textContent=(item.sourceLabel||("Table "+(item.table||"—")))+" · "+size(item.size);meta.appendChild(sub);
+    var actions=document.createElement("div");actions.className="actions";
+    var dl=document.createElement("a");dl.className="download";dl.href=item.downloadUrl;dl.textContent="⬇️ Télécharger";actions.appendChild(dl);
+    var kind=document.createElement("span");kind.className="kind";kind.textContent=item.kind==="video"?"🎬 Vidéo":"🖼️ Photo";actions.appendChild(kind);
+    meta.appendChild(actions);article.appendChild(meta);return article;
+  }
+  function render(){
+    var items=visibleItems();grid.innerHTML="";
+    if(!items.length){grid.innerHTML='<div class="empty">Aucun souvenir dans cette catégorie pour le moment.</div>';updateSelected();return}
+    items.forEach(function(item,i){grid.appendChild(cardFor(item,i))});updateSelected();
+  }
+  document.querySelectorAll("[data-filter]").forEach(function(button){
+    button.addEventListener("click",function(){
+      currentFilter=button.dataset.filter;
+      document.querySelectorAll("[data-filter]").forEach(function(b){b.classList.remove("active");b.classList.add("secondary")});
+      button.classList.add("active");button.classList.remove("secondary");render();
+    });
+  });
+  function checkedBoxes(){return Array.from(document.querySelectorAll(".media-check:checked"))}
+  function updateSelected(){
+    var n=checkedBoxes().length;selectedCount.textContent=n+" sélectionné"+(n>1?"s":"");
+  }
+  document.getElementById("selectAll").onclick=function(){
+    document.querySelectorAll(".media-check").forEach(function(cb){cb.checked=true});updateSelected();
+  };
+  document.getElementById("clearSelection").onclick=function(){
+    document.querySelectorAll(".media-check").forEach(function(cb){cb.checked=false});updateSelected();
+  };
+
+  async function downloadAsZip(items){
+    status.className="status";status.textContent="Préparation du ZIP de "+items.length+" fichier(s)…";
+    var zip=new JSZip();
+    for(var i=0;i<items.length;i++){
+      status.textContent="ZIP "+(i+1)+"/"+items.length+" · "+(items[i].name||"souvenir");
+      var response=await fetch(items[i].downloadUrl);
+      if(!response.ok)throw new Error("Téléchargement impossible");
+      var blob=await response.blob();
+      zip.file(String(i+1).padStart(3,"0")+"-"+(items[i].name||("souvenir-"+(i+1))),blob);
+    }
+    var out=await zip.generateAsync({type:"blob",compression:"STORE"});
+    var a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="souvenirs-mariage-laura-giovanni.zip";document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
+    status.textContent="ZIP prêt ✅";
+  }
+  function downloadIndividually(items){
+    status.className="status";status.textContent="Lancement de "+items.length+" téléchargements… Votre navigateur peut demander d’autoriser les téléchargements multiples.";
+    items.forEach(function(item,i){
+      setTimeout(function(){
+        var frame=document.createElement("iframe");frame.hidden=true;frame.src=item.downloadUrl;document.body.appendChild(frame);
+        setTimeout(function(){frame.remove()},60000);
+      },i*180);
+    });
+  }
+  document.getElementById("downloadSelected").onclick=async function(){
+    var keys=checkedBoxes().map(function(cb){return cb.dataset.key});
+    if(!keys.length){status.className="status error";status.textContent="Sélectionnez au moins une photo ou vidéo.";return}
+    var items=keys.map(function(k){return allItems.find(function(item){return item.key===k})}).filter(Boolean);
+    var total=items.reduce(function(s,item){return s+Number(item.size||0)},0);
+    try{
+      if(total<=ZIP_LIMIT&&window.JSZip)await downloadAsZip(items);
+      else downloadIndividually(items);
+    }catch(e){
+      status.className="status error";status.textContent="Impossible de préparer le téléchargement : "+(e&&e.message?e.message:"erreur");
+    }
+  };
+  load();
+})();
 </script>
-<script src="/legal.js?v=20260925"></script></body></html>
+<script src="/legal.js?v=20260925"></script>
+</body>
+</html>
