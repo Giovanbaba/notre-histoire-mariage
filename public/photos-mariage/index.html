@@ -49,12 +49,13 @@
       </div>
     </div>
     <div id="grid" class="grid"><div class="loading">Chargement des souvenirs…</div></div>
-    <p class="note">La sélection est toujours téléchargée en un seul fichier ZIP, même lorsqu’elle contient plusieurs photos et vidéos.</p>
+    <p class="note">La sélection est téléchargée dans un seul fichier ZIP. Sur Windows/Chrome, le ZIP est écrit directement sur le disque pour éviter les archives incomplètes.</p>
   </section>
 
   <a class="back" href="/accueil/">← Retour à l’accueil</a>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.8.8/dist/zip-full.min.js"></script>
 <script>
 (function(){
   var input=document.getElementById("files");
@@ -233,31 +234,68 @@
     document.querySelectorAll(".media-check").forEach(function(cb){cb.checked=false});updateSelected();
   };
 
+  function safeZipName(name){
+    return String(name||"souvenir").replace(/[\\/:*?"<>|]+/g,"_").replace(/^\.+/,"").slice(0,180)||"souvenir";
+  }
+  async function buildOneZip(items){
+    if(!window.zip||!zip.ZipWriter)throw new Error("Le module ZIP n’a pas chargé. Rechargez la page.");
+    var filename="souvenirs-mariage-laura-giovanni.zip";
+    var writer,blobWriter,directToDisk=false;
+
+    if("showSaveFilePicker" in window){
+      var handle=await window.showSaveFilePicker({
+        suggestedName:filename,
+        types:[{description:"Archive ZIP",accept:{"application/zip":[".zip"]}}]
+      });
+      var writable=await handle.createWritable();
+      writer=new zip.ZipWriter(writable);
+      directToDisk=true;
+    }else{
+      blobWriter=new zip.BlobWriter("application/zip");
+      writer=new zip.ZipWriter(blobWriter);
+    }
+
+    try{
+      for(var i=0;i<items.length;i++){
+        var item=items[i];
+        var folder=item.kind==="video"?"Videos":"Photos";
+        var entry=folder+"/"+String(i+1).padStart(3,"0")+"_"+safeZipName(item.name);
+        status.textContent="Création du ZIP "+(i+1)+"/"+items.length+" · "+safeZipName(item.name);
+        var response=await fetch(item.url,{cache:"no-store"});
+        if(!response.ok||!response.body)throw new Error("Impossible de récupérer "+safeZipName(item.name));
+        await writer.add(entry,response.body,{level:0});
+      }
+      var result=await writer.close();
+      if(!directToDisk){
+        var blob=result instanceof Blob?result:await blobWriter.getData();
+        var a=document.createElement("a");
+        var objectUrl=URL.createObjectURL(blob);
+        a.href=objectUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+        setTimeout(function(){URL.revokeObjectURL(objectUrl)},10000);
+      }
+    }catch(e){
+      try{await writer.close()}catch(_){}
+      throw e;
+    }
+  }
   document.getElementById("downloadSelected").onclick=async function(){
     var button=this;
     var keys=checkedBoxes().map(function(cb){return cb.dataset.key});
     if(!keys.length){status.className="status error";status.textContent="Sélectionnez au moins une photo ou vidéo.";return}
+    var items=keys.map(function(k){return allItems.find(function(item){return item.key===k})}).filter(Boolean);
     button.disabled=true;
     status.className="status";
-    status.textContent="Préparation d’un seul fichier ZIP avec "+keys.length+" souvenir(s)…";
+    status.textContent="Préparation d’un seul fichier ZIP avec "+items.length+" souvenir(s)…";
     try{
-      var response=await request("/api/gallery/archive",{
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({keys:keys}),
-        cache:"no-store"
-      });
-      var data=await response.json();
-      var a=document.createElement("a");
-      a.href=data.downloadUrl;
-      a.download="souvenirs-mariage-laura-giovanni.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      status.textContent="Téléchargement du ZIP lancé ✅";
+      await buildOneZip(items);
+      status.textContent="ZIP terminé ✅";
     }catch(e){
-      status.className="status error";
-      status.textContent="Impossible de préparer le ZIP : "+(e&&e.message?e.message:"erreur");
+      if(e&&e.name==="AbortError"){
+        status.textContent="Téléchargement annulé.";
+      }else{
+        status.className="status error";
+        status.textContent="Impossible de créer le ZIP : "+(e&&e.message?e.message:"erreur");
+      }
     }finally{
       button.disabled=false;
     }
