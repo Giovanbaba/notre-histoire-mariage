@@ -49,13 +49,13 @@
       </div>
     </div>
     <div id="grid" class="grid"><div class="loading">Chargement des souvenirs…</div></div>
-    <p class="note">La sélection est téléchargée dans un seul fichier ZIP. Sur Windows/Chrome, le ZIP est écrit directement sur le disque pour éviter les archives incomplètes.</p>
+    <p class="note">La sélection est préparée en un seul fichier ZIP, vérifié dans le navigateur avant le téléchargement pour garantir sa compatibilité avec Windows.</p>
   </section>
 
   <a class="back" href="/accueil/">← Retour à l’accueil</a>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.8.8/dist/zip-full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 (function(){
   var input=document.getElementById("files");
@@ -237,65 +237,67 @@
   function safeZipName(name){
     return String(name||"souvenir").replace(/[\\/:*?"<>|]+/g,"_").replace(/^\.+/,"").slice(0,180)||"souvenir";
   }
+
   async function buildOneZip(items){
-    if(!window.zip||!zip.ZipWriter)throw new Error("Le module ZIP n’a pas chargé. Rechargez la page.");
+    if(!window.JSZip)throw new Error("Le module ZIP n’a pas chargé. Rechargez la page.");
     var filename="souvenirs-mariage-laura-giovanni.zip";
-    var writer,blobWriter,directToDisk=false;
+    var archive=new JSZip();
+    var loadedBytes=0;
+    var totalBytes=items.reduce(function(sum,item){return sum+Number(item.size||0)},0);
 
-    if("showSaveFilePicker" in window){
-      var handle=await window.showSaveFilePicker({
-        suggestedName:filename,
-        types:[{description:"Archive ZIP",accept:{"application/zip":[".zip"]}}]
-      });
-      var writable=await handle.createWritable();
-      writer=new zip.ZipWriter(writable);
-      directToDisk=true;
-    }else{
-      blobWriter=new zip.BlobWriter("application/zip");
-      writer=new zip.ZipWriter(blobWriter);
+    for(var i=0;i<items.length;i++){
+      var item=items[i];
+      var folder=item.kind==="video"?"Videos":"Photos";
+      var entry=folder+"/"+String(i+1).padStart(3,"0")+"_"+safeZipName(item.name);
+      status.textContent="Récupération "+(i+1)+"/"+items.length+" · "+safeZipName(item.name);
+      var response=await fetch(item.url,{cache:"no-store"});
+      if(!response.ok)throw new Error("Impossible de récupérer "+safeZipName(item.name));
+      var blob=await response.blob();
+      loadedBytes+=blob.size;
+      if(totalBytes>0)bar.style.width=Math.min(85,Math.round((loadedBytes/totalBytes)*85))+"%";
+      archive.file(entry,blob,{binary:true});
     }
 
-    try{
-      for(var i=0;i<items.length;i++){
-        var item=items[i];
-        var folder=item.kind==="video"?"Videos":"Photos";
-        var entry=folder+"/"+String(i+1).padStart(3,"0")+"_"+safeZipName(item.name);
-        status.textContent="Création du ZIP "+(i+1)+"/"+items.length+" · "+safeZipName(item.name);
-        var response=await fetch(item.url,{cache:"no-store"});
-        if(!response.ok||!response.body)throw new Error("Impossible de récupérer "+safeZipName(item.name));
-        await writer.add(entry,response.body,{level:0});
+    status.textContent="Assemblage du ZIP…";
+    var out=await archive.generateAsync(
+      {type:"blob",compression:"STORE",streamFiles:true,mimeType:"application/zip"},
+      function(meta){
+        bar.style.width=(85+Math.round((meta.percent||0)*0.15))+"%";
+        status.textContent="Assemblage du ZIP… "+Math.round(meta.percent||0)+" %";
       }
-      var result=await writer.close();
-      if(!directToDisk){
-        var blob=result instanceof Blob?result:await blobWriter.getData();
-        var a=document.createElement("a");
-        var objectUrl=URL.createObjectURL(blob);
-        a.href=objectUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove();
-        setTimeout(function(){URL.revokeObjectURL(objectUrl)},10000);
-      }
-    }catch(e){
-      try{await writer.close()}catch(_){}
-      throw e;
-    }
+    );
+
+    status.textContent="Vérification du ZIP…";
+    await JSZip.loadAsync(out);
+    bar.style.width="100%";
+
+    var objectUrl=URL.createObjectURL(out);
+    var a=document.createElement("a");
+    a.href=objectUrl;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){URL.revokeObjectURL(objectUrl)},60000);
   }
+
   document.getElementById("downloadSelected").onclick=async function(){
     var button=this;
     var keys=checkedBoxes().map(function(cb){return cb.dataset.key});
     if(!keys.length){status.className="status error";status.textContent="Sélectionnez au moins une photo ou vidéo.";return}
     var items=keys.map(function(k){return allItems.find(function(item){return item.key===k})}).filter(Boolean);
     button.disabled=true;
+    progress.hidden=false;
+    bar.style.width="0";
     status.className="status";
     status.textContent="Préparation d’un seul fichier ZIP avec "+items.length+" souvenir(s)…";
     try{
       await buildOneZip(items);
-      status.textContent="ZIP terminé ✅";
+      status.textContent="ZIP vérifié et prêt ✅";
     }catch(e){
-      if(e&&e.name==="AbortError"){
-        status.textContent="Téléchargement annulé.";
-      }else{
-        status.className="status error";
-        status.textContent="Impossible de créer le ZIP : "+(e&&e.message?e.message:"erreur");
-      }
+      status.className="status error";
+      status.textContent="Impossible de créer le ZIP : "+(e&&e.message?e.message:"erreur");
+      bar.style.width="0";
     }finally{
       button.disabled=false;
     }
