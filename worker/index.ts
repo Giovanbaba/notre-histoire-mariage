@@ -160,104 +160,67 @@ function zipHeader(length: number) {
   return { bytes, view: new DataView(bytes.buffer) };
 }
 
-function setZipUint64(view: DataView, offset: number, value: number) {
-  const low = value >>> 0;
-  const high = Math.floor(value / 0x100000000) >>> 0;
-  view.setUint32(offset, low, true);
-  view.setUint32(offset + 4, high, true);
-}
-
 function localZipHeader(name: Uint8Array, modified: Date) {
   const { time, day } = dosDateTime(modified);
-  const extraLength = 20;
-  const { bytes, view } = zipHeader(30 + name.length + extraLength);
+  const { bytes, view } = zipHeader(30 + name.length);
   view.setUint32(0, 0x04034b50, true);
-  view.setUint16(4, 45, true);
+  view.setUint16(4, 20, true);
   view.setUint16(6, 0x0808, true);
   view.setUint16(8, 0, true);
   view.setUint16(10, time, true);
   view.setUint16(12, day, true);
   view.setUint32(14, 0, true);
-  view.setUint32(18, 0xffffffff, true);
-  view.setUint32(22, 0xffffffff, true);
+  view.setUint32(18, 0, true);
+  view.setUint32(22, 0, true);
   view.setUint16(26, name.length, true);
-  view.setUint16(28, extraLength, true);
+  view.setUint16(28, 0, true);
   bytes.set(name, 30);
-  const extra = 30 + name.length;
-  view.setUint16(extra, 0x0001, true);
-  view.setUint16(extra + 2, 16, true);
-  setZipUint64(view, extra + 4, 0);
-  setZipUint64(view, extra + 12, 0);
   return bytes;
 }
 
 function zipDataDescriptor(crc: number, size: number) {
-  const { bytes, view } = zipHeader(24);
+  const { bytes, view } = zipHeader(16);
   view.setUint32(0, 0x08074b50, true);
   view.setUint32(4, crc >>> 0, true);
-  setZipUint64(view, 8, size);
-  setZipUint64(view, 16, size);
+  view.setUint32(8, size >>> 0, true);
+  view.setUint32(12, size >>> 0, true);
   return bytes;
 }
 
 function centralZipHeader(name: Uint8Array, modified: Date, crc: number, size: number, offset: number) {
   const { time, day } = dosDateTime(modified);
-  const extraLength = 28;
-  const { bytes, view } = zipHeader(46 + name.length + extraLength);
+  const { bytes, view } = zipHeader(46 + name.length);
   view.setUint32(0, 0x02014b50, true);
-  view.setUint16(4, 45, true);
-  view.setUint16(6, 45, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
   view.setUint16(8, 0x0808, true);
   view.setUint16(10, 0, true);
   view.setUint16(12, time, true);
   view.setUint16(14, day, true);
   view.setUint32(16, crc >>> 0, true);
-  view.setUint32(20, 0xffffffff, true);
-  view.setUint32(24, 0xffffffff, true);
+  view.setUint32(20, size >>> 0, true);
+  view.setUint32(24, size >>> 0, true);
   view.setUint16(28, name.length, true);
-  view.setUint16(30, extraLength, true);
+  view.setUint16(30, 0, true);
   view.setUint16(32, 0, true);
   view.setUint16(34, 0, true);
   view.setUint16(36, 0, true);
   view.setUint32(38, 0, true);
-  view.setUint32(42, 0xffffffff, true);
+  view.setUint32(42, offset >>> 0, true);
   bytes.set(name, 46);
-  const extra = 46 + name.length;
-  view.setUint16(extra, 0x0001, true);
-  view.setUint16(extra + 2, 24, true);
-  setZipUint64(view, extra + 4, size);
-  setZipUint64(view, extra + 12, size);
-  setZipUint64(view, extra + 20, offset);
   return bytes;
 }
 
 function endZipHeader(entries: number, centralSize: number, centralOffset: number) {
-  const { bytes, view } = zipHeader(98);
-  view.setUint32(0, 0x06064b50, true);
-  setZipUint64(view, 4, 44);
-  view.setUint16(12, 45, true);
-  view.setUint16(14, 45, true);
-  view.setUint32(16, 0, true);
-  view.setUint32(20, 0, true);
-  setZipUint64(view, 24, entries);
-  setZipUint64(view, 32, entries);
-  setZipUint64(view, 40, centralSize);
-  setZipUint64(view, 48, centralOffset);
-
-  const zip64Offset = centralOffset + centralSize;
-  view.setUint32(56, 0x07064b50, true);
-  view.setUint32(60, 0, true);
-  setZipUint64(view, 64, zip64Offset);
-  view.setUint32(72, 1, true);
-
-  view.setUint32(76, 0x06054b50, true);
-  view.setUint16(80, 0, true);
-  view.setUint16(82, 0, true);
-  view.setUint16(84, 0xffff, true);
-  view.setUint16(86, 0xffff, true);
-  view.setUint32(88, 0xffffffff, true);
-  view.setUint32(92, 0xffffffff, true);
-  view.setUint16(96, 0, true);
+  const { bytes, view } = zipHeader(22);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, entries, true);
+  view.setUint16(10, entries, true);
+  view.setUint32(12, centralSize >>> 0, true);
+  view.setUint32(16, centralOffset >>> 0, true);
+  view.setUint16(20, 0, true);
   return bytes;
 }
 
@@ -287,9 +250,23 @@ async function downloadGalleryArchive(env: AppEnv, url: URL) {
   const manifestObject = await env.WEDDING_BUCKET.get(manifestKey);
   if (!manifestObject) return new Response('Archive expirée ou introuvable.', { status: 404 });
   const manifest = await manifestObject.json<{ keys?: string[] }>();
-  await env.WEDDING_BUCKET.delete(manifestKey);
   const keys = Array.isArray(manifest.keys) ? manifest.keys.filter(key => key.startsWith('mariage-2026/') && !key.includes('..')).slice(0, 500) : [];
   if (!keys.length) return new Response('Archive vide.', { status: 404 });
+
+  let estimatedBytes = 0;
+  let availableFiles = 0;
+  for (const key of keys) {
+    const object = await env.WEDDING_BUCKET.head(key);
+    if (!object) continue;
+    estimatedBytes += object.size;
+    availableFiles += 1;
+  }
+  if (!availableFiles) return new Response('Aucun fichier disponible.', { status: 404 });
+  // Windows Explorer is most reliable with the classic ZIP format.
+  // Keep a comfortable margin below the 4 GiB ZIP32 ceiling.
+  if (estimatedBytes > 3.7 * 1024 * 1024 * 1024) {
+    return new Response('La sélection dépasse la taille maximale d’un ZIP compatible Windows. Sélectionnez moins de fichiers.', { status: 413 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -300,7 +277,7 @@ async function downloadGalleryArchive(env: AppEnv, url: URL) {
         for (let index = 0; index < keys.length; index += 1) {
           const object = await env.WEDDING_BUCKET.get(keys[index]);
           if (!object) continue;
-          if (object.size > 0xffffffff) throw new Error('Un fichier dépasse la limite ZIP classique.');
+          if (object.size > 0xffffffff) throw new Error('Un fichier dépasse la limite ZIP compatible Windows.');
           const name = encoder.encode(archiveEntryName(keys[index], index));
           const localOffset = offset;
           const local = localZipHeader(name, object.uploaded);
@@ -315,6 +292,7 @@ async function downloadGalleryArchive(env: AppEnv, url: URL) {
             crc = crc32Update(crc, value);
             streamed += value.byteLength;
             offset += value.byteLength;
+            if (offset > 0xffffffff) throw new Error('Archive trop volumineuse pour Windows.');
             controller.enqueue(value);
           }
           crc = (crc ^ 0xffffffff) >>> 0;
