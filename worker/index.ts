@@ -132,6 +132,185 @@ async function galleryPayload(bucket: R2Bucket, kind: 'photo' | 'video') {
   });
 }
 
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32Update(crc: number, chunk: Uint8Array) {
+  let value = crc >>> 0;
+  for (let i = 0; i < chunk.length; i += 1) value = CRC32_TABLE[(value ^ chunk[i]) & 0xff] ^ (value >>> 8);
+  return value >>> 0;
+}
+
+function dosDateTime(date: Date) {
+  const year = Math.max(1980, date.getUTCFullYear());
+  const time = ((date.getUTCHours() & 31) << 11) | ((date.getUTCMinutes() & 63) << 5) | ((Math.floor(date.getUTCSeconds() / 2)) & 31);
+  const day = ((year - 1980) << 9) | (((date.getUTCMonth() + 1) & 15) << 5) | (date.getUTCDate() & 31);
+  return { time, day };
+}
+
+function zipHeader(length: number) {
+  const bytes = new Uint8Array(length);
+  return { bytes, view: new DataView(bytes.buffer) };
+}
+
+function localZipHeader(name: Uint8Array, modified: Date) {
+  const { time, day } = dosDateTime(modified);
+  const { bytes, view } = zipHeader(30 + name.length);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0x0808, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, time, true);
+  view.setUint16(12, day, true);
+  view.setUint32(14, 0, true);
+  view.setUint32(18, 0, true);
+  view.setUint32(22, 0, true);
+  view.setUint16(26, name.length, true);
+  view.setUint16(28, 0, true);
+  bytes.set(name, 30);
+  return bytes;
+}
+
+function zipDataDescriptor(crc: number, size: number) {
+  const { bytes, view } = zipHeader(16);
+  view.setUint32(0, 0x08074b50, true);
+  view.setUint32(4, crc >>> 0, true);
+  view.setUint32(8, size >>> 0, true);
+  view.setUint32(12, size >>> 0, true);
+  return bytes;
+}
+
+function centralZipHeader(name: Uint8Array, modified: Date, crc: number, size: number, offset: number) {
+  const { time, day } = dosDateTime(modified);
+  const { bytes, view } = zipHeader(46 + name.length);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0x0808, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, time, true);
+  view.setUint16(14, day, true);
+  view.setUint32(16, crc >>> 0, true);
+  view.setUint32(20, size >>> 0, true);
+  view.setUint32(24, size >>> 0, true);
+  view.setUint16(28, name.length, true);
+  view.setUint16(30, 0, true);
+  view.setUint16(32, 0, true);
+  view.setUint16(34, 0, true);
+  view.setUint16(36, 0, true);
+  view.setUint32(38, 0, true);
+  view.setUint32(42, offset >>> 0, true);
+  bytes.set(name, 46);
+  return bytes;
+}
+
+function endZipHeader(entries: number, centralSize: number, centralOffset: number) {
+  const { bytes, view } = zipHeader(22);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, entries, true);
+  view.setUint16(10, entries, true);
+  view.setUint32(12, centralSize >>> 0, true);
+  view.setUint32(16, centralOffset >>> 0, true);
+  view.setUint16(20, 0, true);
+  return bytes;
+}
+
+function archiveEntryName(key: string, index: number) {
+  const filename = mediaName(key).replace(/[\\/]/g, '_');
+  const folder = mediaKind(key) === 'video' ? 'Videos' : 'Photos';
+  return `${folder}/${String(index + 1).padStart(3, '0')}_${filename}`;
+}
+
+async function createGalleryArchive(request: Request, env: AppEnv) {
+  const body = await request.json<{ keys?: string[] }>();
+  const keys = Array.isArray(body.keys) ? [...new Set(body.keys.map(String))] : [];
+  const valid = keys.filter(key => key.startsWith('mariage-2026/') && !key.includes('..')).slice(0, 500);
+  if (!valid.length) return json({ ok: false, error: 'Aucun fichier sélectionné.' }, { status: 400 });
+  const id = crypto.randomUUID();
+  const manifestKey = `mariage-2026-system/archive-${id}.json`;
+  await env.WEDDING_BUCKET.put(manifestKey, JSON.stringify({ keys: valid, createdAt: Date.now() }), {
+    httpMetadata: { contentType: 'application/json', cacheControl: 'no-store' },
+  });
+  return json({ ok: true, count: valid.length, downloadUrl: `/api/gallery/archive/download?id=${encodeURIComponent(id)}` }, { status: 201 });
+}
+
+async function downloadGalleryArchive(env: AppEnv, url: URL) {
+  const id = (url.searchParams.get('id') || '').replace(/[^a-f0-9-]/gi, '');
+  if (!id) return new Response('Not found', { status: 404 });
+  const manifestKey = `mariage-2026-system/archive-${id}.json`;
+  const manifestObject = await env.WEDDING_BUCKET.get(manifestKey);
+  if (!manifestObject) return new Response('Archive expirée ou introuvable.', { status: 404 });
+  const manifest = await manifestObject.json<{ keys?: string[] }>();
+  await env.WEDDING_BUCKET.delete(manifestKey);
+  const keys = Array.isArray(manifest.keys) ? manifest.keys.filter(key => key.startsWith('mariage-2026/') && !key.includes('..')).slice(0, 500) : [];
+  if (!keys.length) return new Response('Archive vide.', { status: 404 });
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const entries: Array<{ name: Uint8Array; modified: Date; crc: number; size: number; offset: number }> = [];
+      let offset = 0;
+      try {
+        for (let index = 0; index < keys.length; index += 1) {
+          const object = await env.WEDDING_BUCKET.get(keys[index]);
+          if (!object) continue;
+          if (object.size > 0xffffffff) throw new Error('Un fichier dépasse la limite ZIP classique.');
+          const name = encoder.encode(archiveEntryName(keys[index], index));
+          const localOffset = offset;
+          const local = localZipHeader(name, object.uploaded);
+          controller.enqueue(local); offset += local.byteLength;
+          let crc = 0xffffffff;
+          let streamed = 0;
+          const reader = object.body.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (!value) continue;
+            crc = crc32Update(crc, value);
+            streamed += value.byteLength;
+            offset += value.byteLength;
+            if (offset > 0xffffffff) throw new Error('La sélection dépasse 4 Go. Réduisez la sélection.');
+            controller.enqueue(value);
+          }
+          crc = (crc ^ 0xffffffff) >>> 0;
+          const descriptor = zipDataDescriptor(crc, streamed);
+          controller.enqueue(descriptor); offset += descriptor.byteLength;
+          entries.push({ name, modified: object.uploaded, crc, size: streamed, offset: localOffset });
+        }
+
+        if (!entries.length) throw new Error('Aucun fichier disponible.');
+        const centralOffset = offset;
+        for (const entry of entries) {
+          const central = centralZipHeader(entry.name, entry.modified, entry.crc, entry.size, entry.offset);
+          controller.enqueue(central); offset += central.byteLength;
+        }
+        const centralSize = offset - centralOffset;
+        const end = endZipHeader(entries.length, centralSize, centralOffset);
+        controller.enqueue(end);
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+  });
+
+  const headers = new Headers({
+    'content-type': 'application/zip',
+    'content-disposition': 'attachment; filename="souvenirs-mariage-laura-giovanni.zip"',
+    'cache-control': 'private, no-store',
+  });
+  return new Response(stream, { headers });
+}
+
 async function uploadToR2(request: Request, env: AppEnv) {
   const form = await request.formData(); const file = form.get('photo') || form.get('file');
   if (!(file instanceof File) || !ALLOWED_UPLOAD_TYPES.has(file.type)) return json({ ok: false, error: 'Photo ou vidéo manquante, ou format invalide.' }, { status: 415 });
@@ -238,6 +417,8 @@ async function handleApi(request: Request, env: AppEnv, url: URL): Promise<Respo
   if (url.pathname === '/api/upload/multipart/abort' && request.method === 'POST') return abortMultipartVideo(request, env);
   if (url.pathname === '/api/media' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=300'); return new Response(object.body, { headers }); }
   if (url.pathname === '/api/gallery' && request.method === 'GET') { const kind = url.searchParams.get('kind') === 'video' ? 'video' : 'photo'; const items = await galleryPayload(env.WEDDING_BUCKET, kind); return json({ ok: true, kind, total: items.length, items }); }
+  if (url.pathname === '/api/gallery/archive' && request.method === 'POST') return createGalleryArchive(request, env);
+  if (url.pathname === '/api/gallery/archive/download' && request.method === 'GET') return downloadGalleryArchive(env, url);
   if (url.pathname === '/api/download' && request.method === 'GET') { const key = url.searchParams.get('key') || ''; if (!key.startsWith('mariage-2026/') || key.includes('..')) return new Response('Not found', { status: 404 }); const object = await env.WEDDING_BUCKET.get(key); if (!object) return new Response('Not found', { status: 404 }); const headers = new Headers(); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag); headers.set('cache-control', 'private, max-age=60'); headers.set('content-disposition', `attachment; filename="${mediaName(key)}"`); return new Response(object.body, { headers }); }
   if (url.pathname === '/api/dashboard' && request.method === 'GET') return json(await dashboard(env));
   if (url.pathname === '/api/admin/verify' && request.method === 'GET') return await isAdmin(request, env) ? json({ ok: true }) : json({ ok: false, error: 'Code administrateur incorrect.' }, { status: 401 });
