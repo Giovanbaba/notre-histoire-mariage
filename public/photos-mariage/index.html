@@ -49,13 +49,12 @@
       </div>
     </div>
     <div id="grid" class="grid"><div class="loading">Chargement des souvenirs…</div></div>
-    <p class="note">Pour les petites sélections, le site crée un seul ZIP. Pour les sélections lourdes ou avec de grosses vidéos, les fichiers sont lancés séparément afin de ne pas saturer le téléphone.</p>
+    <p class="note">La sélection est toujours téléchargée en un seul fichier ZIP, même lorsqu’elle contient plusieurs photos et vidéos.</p>
   </section>
 
   <a class="back" href="/accueil/">← Retour à l’accueil</a>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 (function(){
   var input=document.getElementById("files");
@@ -69,7 +68,6 @@
   var allItems=[];
   var MAX_VIDEO=2*1024*1024*1024;
   var CHUNK=20*1024*1024;
-  var ZIP_LIMIT=120*1024*1024;
 
   function esc(value){
     return String(value==null?"":value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]});
@@ -235,40 +233,33 @@
     document.querySelectorAll(".media-check").forEach(function(cb){cb.checked=false});updateSelected();
   };
 
-  async function downloadAsZip(items){
-    status.className="status";status.textContent="Préparation du ZIP de "+items.length+" fichier(s)…";
-    var zip=new JSZip();
-    for(var i=0;i<items.length;i++){
-      status.textContent="ZIP "+(i+1)+"/"+items.length+" · "+(items[i].name||"souvenir");
-      var response=await fetch(items[i].downloadUrl);
-      if(!response.ok)throw new Error("Téléchargement impossible");
-      var blob=await response.blob();
-      zip.file(String(i+1).padStart(3,"0")+"-"+(items[i].name||("souvenir-"+(i+1))),blob);
-    }
-    var out=await zip.generateAsync({type:"blob",compression:"STORE"});
-    var a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="souvenirs-mariage-laura-giovanni.zip";document.body.appendChild(a);a.click();a.remove();
-    setTimeout(function(){URL.revokeObjectURL(a.href)},3000);
-    status.textContent="ZIP prêt ✅";
-  }
-  function downloadIndividually(items){
-    status.className="status";status.textContent="Lancement de "+items.length+" téléchargements… Votre navigateur peut demander d’autoriser les téléchargements multiples.";
-    items.forEach(function(item,i){
-      setTimeout(function(){
-        var frame=document.createElement("iframe");frame.hidden=true;frame.src=item.downloadUrl;document.body.appendChild(frame);
-        setTimeout(function(){frame.remove()},60000);
-      },i*180);
-    });
-  }
   document.getElementById("downloadSelected").onclick=async function(){
+    var button=this;
     var keys=checkedBoxes().map(function(cb){return cb.dataset.key});
     if(!keys.length){status.className="status error";status.textContent="Sélectionnez au moins une photo ou vidéo.";return}
-    var items=keys.map(function(k){return allItems.find(function(item){return item.key===k})}).filter(Boolean);
-    var total=items.reduce(function(s,item){return s+Number(item.size||0)},0);
+    button.disabled=true;
+    status.className="status";
+    status.textContent="Préparation d’un seul fichier ZIP avec "+keys.length+" souvenir(s)…";
     try{
-      if(total<=ZIP_LIMIT&&window.JSZip)await downloadAsZip(items);
-      else downloadIndividually(items);
+      var response=await request("/api/gallery/archive",{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({keys:keys}),
+        cache:"no-store"
+      });
+      var data=await response.json();
+      var a=document.createElement("a");
+      a.href=data.downloadUrl;
+      a.download="souvenirs-mariage-laura-giovanni.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      status.textContent="Téléchargement du ZIP lancé ✅";
     }catch(e){
-      status.className="status error";status.textContent="Impossible de préparer le téléchargement : "+(e&&e.message?e.message:"erreur");
+      status.className="status error";
+      status.textContent="Impossible de préparer le ZIP : "+(e&&e.message?e.message:"erreur");
+    }finally{
+      button.disabled=false;
     }
   };
   load();
