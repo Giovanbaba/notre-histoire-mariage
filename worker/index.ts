@@ -27,6 +27,7 @@ const GLOBAL_NAV = `<style>
   <a href="/hit-kiss/"><b>🎵</b><span>Hit & Kiss</span></a>
   <a href="/puzzle"><b>🧩</b><span>Notre histoire</span></a>
   <a href="/classement/"><b>🏆</b><span>Classement</span></a>
+  <a href="/cv/"><b>📄</b><span>Mon CV</span></a>
   <a href="/animateur/"><b>🔐</b><span>ADMIN</span></a>
 </nav><script>
 (() => {
