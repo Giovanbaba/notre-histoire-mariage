@@ -1,3 +1,4 @@
+import { handlePlanner } from './conubia-planner';
 import { Buffer } from 'node:buffer';
 import { HitKissRoom, WeddingState, type AppEnv } from './state';
 import { handleEclat } from './eclat';
@@ -262,6 +263,7 @@ export default {
   async fetch(request: Request, env: AppEnv): Promise<Response> {
     const url = new URL(request.url);
     try {
+      if (url.pathname.startsWith('/api/conubia/')) return await handlePlanner(request, env, url);
       if (url.pathname.startsWith('/api/eclat/')) return await handleEclat(request, env, url);
       if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
       // Serve the SPA shell without requesting /index.html directly: with
